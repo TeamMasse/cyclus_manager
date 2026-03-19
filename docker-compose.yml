@@ -1,19 +1,25 @@
 services:
   # 1. Database
   db:
-    image: postgres:15-alpine
+    image: postgres:latest
     container_name: ergo_db
     restart: always
+    shm_size: 128mb
     environment:
       POSTGRES_USER: ergouser
       POSTGRES_PASSWORD: ergopassword
       POSTGRES_DB: ergodb
     volumes:
-      - pgdata:/var/lib/postgresql/data
-      # - ./init.sql:/docker-entrypoint-initdb.d/init.sql # Uncomment to auto-run a setup script
+      - ./pgdata:/var/lib/postgresql
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql # Uncomment to auto-run a setup script
     ports:
       - "5432:5432" # Expose for local development/management tools like DBeaver
 
+  adminer:
+    image: adminer
+    restart: always
+    ports:
+      - 8080:8080
   # 2. Backend API & Hardware Controller
   api:
     build: ./api
@@ -42,12 +48,5 @@ services:
     restart: always
     ports:
         - 80:8080
-    environment:
-        - PUID=1000 # change this to your user id
-        - PGID=1000 # change this to your group id
     volumes:
         - ./web/:/app/
-
-# Named volume for persistent database storage
-volumes:
-  pgdata:
