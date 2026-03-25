@@ -20,10 +20,18 @@ CREATE TABLE bicycles (
     "sprocket_size" smallint DEFAULT 12
 );
 
+CREATE TABLE training_sessions (
+    "id" serial PRIMARY KEY,
+    "label" character varying(64) NOT NULL,
+    "duration_s" int NOT NULL,
+    "file_path" character varying(256) NOT NULL
+);
+
 CREATE TABLE workouts (
     "id" serial PRIMARY KEY,
     "user_id" integer NOT NULL REFERENCES users("id") ON DELETE CASCADE,
     "bicycle_id" integer NOT NULL REFERENCES bicycles("id") ON DELETE CASCADE,
+    "training_session_id" integer REFERENCES training_sessions("id") ON DELETE SET NULL,
     "date" date NOT NULL,
     "duration_s" int NOT NULL,
     "distance_km" real NOT NULL,
