@@ -28,5 +28,6 @@ CREATE TABLE workouts (
     "duration_s" int NOT NULL,
     "distance_km" real NOT NULL,
     "average_speed_kmh" real NOT NULL,
-    "average_power_w" real NOT NULL
+    "average_power_w" real NOT NULL,
+    "file_path" character varying(256) NOT NULL
 );
