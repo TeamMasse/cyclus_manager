@@ -4,17 +4,19 @@ import httpx
 import asyncio
 
 def page_header_title(title):
+    ui.dark_mode(True)
     ui.page_title('Cyclus Manager')
-    with ui.header().style('background-color: #333; color: white; padding: 10px;'):
-        ui.button(on_click=lambda: left_drawer.toggle(), icon='menu').props('flat color=white')
+    with ui.header():
+        ui.button(on_click=lambda: left_drawer.toggle(), icon='menu')
         ui.label(title).style('font-size: 24px; font-weight: bold;')
         
-    with ui.left_drawer(fixed=True).props('width=100').style('background-color: #f4f4f4; padding: 20px;') as left_drawer:
-        ui.link('Home', '/').style('display: block; margin-bottom: 5px; color: white;')
-        ui.link('Settings', '/settings').style('display: block; margin-bottom: 5px; color: white;')
-        ui.link('Athletes', '/athletes').style('display: block; margin-bottom: 5px; color: white;')
-        ui.link('Bikes', '/bikes').style('display: block; margin-bottom: 5px; color: white;')
-
+    with ui.left_drawer(fixed=True).props('width=100') as left_drawer:
+        ui.link('Home', '/').style('display: block; margin-bottom: 5px;')
+        ui.link('Settings', '/settings').style('display: block; margin-bottom: 5px;')
+        ui.link('Athletes', '/athletes').style('display: block; margin-bottom: 5px;')
+        ui.link('Bikes', '/bikes').style('display: block; margin-bottom: 5px;')
+        ui.link('Training Plans', '/training_plans').style('display: block; margin-bottom: 5px;')
+        ui.link('Training Sessions', '/training_sessions').style('display: block; margin-bottom: 5px;')
 
 @ui.page('/')
 def page():
@@ -43,7 +45,7 @@ async def athletes_page():
             "first_name": first_name_input.value,
             "last_name": last_name_input.value,
             "date_of_birth": date_of_birth_input.value,
-            "gender": gender_input.value,
+            "gender": gender_input.value if gender_input.value else 0,
             "body_weight_kg": float(body_weight_input.value),
             "body_height_m": float(body_height_input.value),
             "drag_area_m2": float(drag_area_input.value),
@@ -56,13 +58,13 @@ async def athletes_page():
         
     athletes_data = await fetch_athletes()
     columns = [
-        {'name': 'id', 'label': 'ID', 'field': 'id'},
-        {'name': 'first_name', 'label': 'First Name', 'field': 'first_name'},
-        {'name': 'last_name', 'label': 'Last Name', 'field': 'last_name'},
-        {'name': 'date_of_birth', 'label': 'Date of Birth', 'field': 'date_of_birth'},
-        {'name': 'gender', 'label': 'Gender', 'field': 'gender'},
-        {'name': 'body_weight_kg', 'label': 'Body Weight (kg)', 'field': 'body_weight_kg'},
-        {'name': 'body_height_m', 'label': 'Body Height (m)', 'field': 'body_height_m'},
+        {'name': 'id', 'label': 'ID', 'field': 'id', 'sortable': True},
+        {'name': 'first_name', 'label': 'First Name', 'field': 'first_name', 'sortable': True},
+        {'name': 'last_name', 'label': 'Last Name', 'field': 'last_name', 'sortable': True},
+        {'name': 'date_of_birth', 'label': 'Date of Birth', 'field': 'date_of_birth', 'sortable': True},
+        {'name': 'gender', 'label': 'Gender', 'field': 'gender', 'sortable': True},
+        {'name': 'body_weight_kg', 'label': 'Body Weight (kg)', 'field': 'body_weight_kg', 'sortable': True},
+        {'name': 'body_height_m', 'label': 'Body Height (m)', 'field': 'body_height_m', 'sortable': True},
         {'name': 'drag_area_m2', 'label': 'Drag area (m²)', 'field': 'drag_area_m2'},
         {'name': 'drag_coefficient', 'label': 'Drag coefficient', 'field': 'drag_coefficient'},     
     ]
@@ -107,13 +109,13 @@ async def bikes_page():
     
     bikes_data = await fetch_bikes()
     columns = [
-        {'name': 'id', 'label': 'ID', 'field': 'id'},
-        {'name': 'label', 'label': 'Name', 'field': 'label'},
-        {'name': 'wheel_size_m', 'label': 'Wheel size (m)', 'field': 'wheel_size_m'},
-        {'name': 'crank_length_m', 'label': 'Crank length (m)', 'field': 'crank_length_m'},
-        {'name': 'weight_kg', 'label': 'Weight (kg)', 'field': 'weight_kg'},
-        {'name': 'chainring_size', 'label': 'Chainring size', 'field': 'chainring_size'},
-        {'name': 'sprocket_size', 'label': 'Sprocket size', 'field': 'sprocket_size'},      
+        {'name': 'id', 'label': 'ID', 'field': 'id', 'sortable': True},
+        {'name': 'label', 'label': 'Name', 'field': 'label', 'sortable': True},
+        {'name': 'wheel_size_m', 'label': 'Wheel size (m)', 'field': 'wheel_size_m', 'sortable': True},
+        {'name': 'crank_length_m', 'label': 'Crank length (m)', 'field': 'crank_length_m', 'sortable': True},
+        {'name': 'weight_kg', 'label': 'Weight (kg)', 'field': 'weight_kg', 'sortable': True},
+        {'name': 'chainring_size', 'label': 'Chainring size', 'field': 'chainring_size', 'sortable': True},
+        {'name': 'sprocket_size', 'label': 'Sprocket size', 'field': 'sprocket_size', 'sortable': True},      
     ]
     
     bikes = ui.table(columns=columns, rows=bikes_data)
@@ -127,5 +129,52 @@ async def bikes_page():
         chainring_size_input = ui.input('Chainring Size')
         sprocket_size_input = ui.input('Sprocket Size')
     ui.button('Add Bike', on_click=add_bike).style('margin-top: 10px;')
+    
+@ui.page('/training_plans')
+async def training_plans_page():
+    page_header_title('Training Plans')
+    async def fetch_training_plans():
+        async with httpx.AsyncClient() as client:
+            response = await client.get('http://api:8000/training_plans')
+            return response.json()   
+    
+    training_plans_data = await fetch_training_plans()
+    columns = [
+        {'name': 'id', 'label': 'ID', 'field': 'id', 'sortable': True},
+        {'name': 'label', 'label': 'Name', 'field': 'label', 'sortable': True},
+        {'name': 'duration_s', 'label': 'Duration (s)', 'field': 'duration_s', 'sortable': True},
+        {'name': 'file_path', 'label': 'File Path', 'field': 'file_path'},
+    ]
+    
+    training_plans = ui.table(columns=columns, rows=training_plans_data)
 
+@ui.page('/training_sessions')
+async def training_sessions_page():
+    page_header_title('Training Sessions')
+    async def fetch_training_sessions():
+        async with httpx.AsyncClient() as client:
+            response = await client.get('http://api:8000/training_sessions')
+            return response.json()   
+    
+    training_sessions_data = await fetch_training_sessions()
+    columns = [
+        {'name': 'id', 'label': 'ID', 'field': 'id', 'sortable': True},
+        {'name': 'user_id', 'label': 'User', 'field': 'user_id', 'sortable': True},
+        {'name': 'bicycle_id', 'label': 'Bicycle', 'field': 'bicycle_id', 'sortable': True},
+        {'name': 'training_plan_id', 'label': 'Training Plan', 'field': 'training_plan_id', 'sortable': True},
+        {'name': 'date', 'label': 'Date', 'field': 'date', 'sortable': True},
+        {'name': 'duration_s', 'label': 'Duration (s)', 'field': 'duration_s', 'sortable': True},
+        {'name': 'distance_km', 'label': 'Distance (km)', 'field': 'distance_km', 'sortable': True},
+        {'name': 'average_speed_kmh', 'label': 'Average Speed (km/h)', 'field': 'average_speed_kmh', 'sortable': True},
+        {'name': 'average_power_w', 'label': 'Average Power (W)', 'field': 'average_power_w', 'sortable': True},
+        {'name': 'file_path', 'label': 'File Path', 'field': 'file_path'},
+        {'name': 'action', 'label': 'Action', 'align': 'center'},
+    ]
+    
+    training_sessions = ui.table(columns=columns, rows=training_sessions_data)
+    with training_sessions.add_slot('body-cell-action'):
+        with training_sessions.cell('action'):
+            ui.button('View', color='primary').props('flat').on('click', js_handler='() => emit(props.row.id)',
+            handler=lambda e: ui.notify(e.args),)
+        
 ui.run()
