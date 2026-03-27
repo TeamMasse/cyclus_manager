@@ -79,3 +79,19 @@ def create_bicycle(bicycle: dict):
             bicycle_id = cur.fetchone()[0]
             conn.commit()
     return {"id": bicycle_id, **bicycle}
+
+@app.get("/training_plans")
+def list_training_plans():
+    with psycopg.connect(DATABASE_URL) as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT * FROM training_plans;")
+            rows = cur.fetchall()
+    return [{"id": row[0], "label": row[1], "duration_s": row[2], "file_path": row[3]} for row in rows]
+
+@app.get("/training_sessions")
+def list_training_sessions():
+    with psycopg.connect(DATABASE_URL) as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT training_sessions.id,users.first_name,bicycles.label,training_plans.label,training_sessions.date,training_sessions.duration_s,training_sessions.distance_km,training_sessions.average_speed_kmh,training_sessions.average_power_w,training_sessions.file_path FROM training_sessions join users on training_sessions.user_id = users.id join bicycles on training_sessions.bicycle_id = bicycles.id join training_plans on training_sessions.training_plan_id = training_plans.id;")
+            rows = cur.fetchall()
+    return [{"id": row[0], "user_id": row[1], "bicycle_id": row[2], "training_plan_id": row[3], "date": row[4], "duration_s": row[5], "distance_km": row[6], "average_speed_kmh": row[7], "average_power_w": row[8], "file_path": row[9]} for row in rows]
