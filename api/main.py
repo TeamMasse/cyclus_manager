@@ -52,6 +52,39 @@ def create_user(user: dict):
             conn.commit()
     return {"id": user_id, **user}
 
+@app.put("/users/{user_id}")
+def update_user(user_id: int, user: dict):
+    with psycopg.connect(DATABASE_URL) as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                '''
+                UPDATE users
+                SET "first_name" = %s, "last_name" = %s, "date_of_birth" = %s, "gender" = %s, "body_weight_kg" = %s, "body_height_m" = %s, "drag_area_m2" = %s, "drag_coefficient" = %s
+                WHERE "id" = %s;
+                ''',
+                (
+                    user["first_name"],
+                    user["last_name"],
+                    user["date_of_birth"],
+                    user["gender"],
+                    user["body_weight_kg"],
+                    user["body_height_m"],
+                    user["drag_area_m2"],
+                    user["drag_coefficient"],
+                    user_id,
+                ),
+            )
+            conn.commit()
+    return {"id": user_id, **user}
+
+@app.delete("/users/{user_id}")
+def delete_user(user_id: int):
+    with psycopg.connect(DATABASE_URL) as conn:
+        with conn.cursor() as cur:
+            cur.execute("DELETE FROM users WHERE id = %s;", (user_id,))
+            conn.commit()
+    return {"status": "deleted", "id": user_id}
+
 @app.get("/bicycles")
 def list_bicycles():
     with psycopg.connect(DATABASE_URL) as conn:
@@ -83,6 +116,37 @@ def create_bicycle(bicycle: dict):
             bicycle_id = cur.fetchone()[0]
             conn.commit()
     return {"id": bicycle_id, **bicycle}
+
+@app.put("/bicycles/{bicycle_id}")
+def update_bicycle(bicycle_id: int, bicycle: dict):
+    with psycopg.connect(DATABASE_URL) as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                '''
+                UPDATE bicycles
+                SET "label" = %s, "wheel_size_m" = %s, "crank_length_m" = %s, "weight_kg" = %s, "chainring_size" = %s, "sprocket_size" = %s
+                WHERE "id" = %s;
+                ''',
+                (
+                    bicycle["label"],
+                    bicycle["wheel_size_m"],
+                    bicycle["crank_length_m"],
+                    bicycle["weight_kg"],
+                    bicycle["chainring_size"],
+                    bicycle["sprocket_size"],
+                    bicycle_id,
+                ),
+            )
+            conn.commit()
+    return {"id": bicycle_id, **bicycle}
+
+@app.delete("/bicycles/{bicycle_id}")
+def delete_bicycle(bicycle_id: int):
+    with psycopg.connect(DATABASE_URL) as conn:
+        with conn.cursor() as cur:
+            cur.execute("DELETE FROM bicycles WHERE id = %s;", (bicycle_id,))
+            conn.commit()
+    return {"status": "deleted", "id": bicycle_id}
 
 @app.get("/training_plans")
 def list_training_plans():
