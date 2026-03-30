@@ -1,28 +1,56 @@
-import time
-from nicegui import Event, app, ui
+#import plotly.graph_objects as go
+from nicegui import app, ui
 import httpx
-import asyncio
+
+app.colors(primary="#1e1e1e",secondary = '#26a69a',accent = '#9c27b0',dark = "#1e1e1e",dark_page = '#121212',positive = '#21ba45',negative = '#c10015',info = '#31ccec',warning = '#f2c037')
 
 def page_header_title(title):
     ui.dark_mode(True)
     ui.page_title('Cyclus Manager')
     with ui.header():
         ui.button(on_click=lambda: left_drawer.toggle(), icon='menu')
-        ui.label(title).style('font-size: 24px; font-weight: bold;')
+        ui.label(title).style('font-size: 24px;')
         
     with ui.left_drawer(fixed=True).props('width=100') as left_drawer:
-        ui.link('Home', '/').style('display: block; margin-bottom: 5px;')
-        ui.link('Settings', '/settings').style('display: block; margin-bottom: 5px;')
-        ui.link('Athletes', '/athletes').style('display: block; margin-bottom: 5px;')
-        ui.link('Bikes', '/bikes').style('display: block; margin-bottom: 5px;')
-        ui.link('Training Plans', '/training_plans').style('display: block; margin-bottom: 5px;')
-        ui.link('Training Sessions', '/training_sessions').style('display: block; margin-bottom: 5px;')
+        ui.link('Home', '/').style('display: block; margin-bottom: 5px; color: white; text-decoration-line: none')
+        ui.link('Settings', '/settings').style('display: block; margin-bottom: 5px; color: white; text-decoration-line: none')
+        ui.link('Athletes', '/athletes').style('display: block; margin-bottom: 5px; color: white; text-decoration-line: none')
+        ui.link('Bikes', '/bikes').style('display: block; margin-bottom: 5px; color: white; text-decoration-line: none')
+        ui.link('Training Plans', '/training_plans').style('display: block; margin-bottom: 5px; color: white; text-decoration-line: none')
+        ui.link('Training Sessions', '/training_sessions').style('display: block; margin-bottom: 5px; color: white; text-decoration-line: none')
 
 @ui.page('/')
 def page():
     page_header_title('Cyclus Manager')
     
     ui.label('Hello World!')
+    fig = {
+        'data': [
+            {
+                'type': 'scatter',
+                'name': 'Trace 1',
+                'x': [1,2,3,4],
+                'y': [2,5,6,1],
+            },
+            {
+                'type': 'scatter',
+                'name': 'Trace 2',
+                'x': [1,2,3,4],
+                'y': [21,5,-5,1],
+            },
+        ],
+        'layout': {
+            'margin': {'l': 15, 'r': 15, 't': 0, 'b': 15},
+            'plot_bgcolor': "#5e6c80",
+            'showlegend': 'False',
+            'xaxis': {'gridcolor': 'white'},
+            'yaxis': {'gridcolor': 'black'}
+        },
+    }
+    with ui.row():
+        ui.plotly(fig).classes('w-80 h-full')
+        ui.plotly(fig).classes('w-80 h-full')
+        ui.plotly(fig).classes('w-80 h-full')
 
 @ui.page('/settings')
 def settings_page():
