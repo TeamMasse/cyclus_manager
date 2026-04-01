@@ -3,9 +3,56 @@ import json
 import os
 import psycopg
 from fastapi import FastAPI
+import telnetlib3
 
+async def handle_ergometer(label, ip_port):
+    ip, port = ip_port.split(':')
+    print(f"[{label}] Connecting to {ip}:{port}...")
+    
+    # try:
+    #     # Open an asynchronous TCP connection
+    #     reader, writer = await asyncio.open_connection(ip, int(port))
+    #     print(f"[{label}] Connected!")
+
+    #     # Send an initial command (if your custom protocol requires it)
+    #     # writer.write(b"START\r\n")
+    #     # await writer.drain()
+
+    #     while True:
+    #         # Read data continuously (e.g., until a newline is received)
+    #         data = await reader.readuntil(b'\n')
+    #         if not data:
+    #             break # Connection closed by ergometer
+            
+    #         decoded_data = data.decode('utf-8').strip()
+    #         print(f"[{label}] Telemetry received: {decoded_data}")
+            
+    #         # TODO: Process the data, broadcast to Web UI, or store it
+            
+    # except Exception as e:
+    #     print(f"[{label}] Connection error: {e}")
+    # finally:
+    #     print(f"[{label}] Disconnected. Attempting reconnect in 5s...")
+    #     await asyncio.sleep(5)
+    #     # Call recursively/loop to reconnect
+    #     await handle_ergometer(label, ip_port) 
+
+async def setup_ergometers():
+    config_str = os.getenv("ERGOMETERS_CONFIG", "{}")
+    ergometers = json.loads(config_str)
+
+    # 2. Create a concurrent background task for every ergometer
+    tasks = []
+    for label, ip_port in ergometers.items():
+        task = asyncio.create_task(handle_ergometer(label, ip_port))
+        tasks.append(task)
+
+    # 3. Run them all at the same time
+    await asyncio.gather(*tasks)
+    
 app = FastAPI()
 DATABASE_URL = os.getenv("DATABASE_URL")
+asyncio.run(setup_ergometers())
 
 @app.get("/health")
 def health():
