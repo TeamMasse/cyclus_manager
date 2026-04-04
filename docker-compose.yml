@@ -26,6 +26,7 @@ services:
     restart: always
     ports:
       - 8080:8080
+      
   # 2. Backend API & Hardware Controller
   api:
     build: ./api
@@ -33,7 +34,7 @@ services:
     restart: unless-stopped
     environment:
       - DATABASE_URL=postgresql://ergouser:ergopassword@db:5432/ergodb
-      - ERGOMETERS_CONFIG={"Ergo1":"192.168.1.50:25000", "Ergo2":"192.168.1.51:25000"}
+      - ERGOMETERS_CONFIG={"Ergo1":"host.docker.internal:8013", "Ergo2":"host.docker.internal:8023"}
     depends_on:
       - db
     ports:
@@ -44,16 +45,6 @@ services:
       timeout: 5s
       retries: 5
       start_period: 30s
-    
-    # --- HARDWARE ACCESS UNCOMMENT AS NEEDED ---
-    # If connecting via USB/Serial cable (Linux):
-    # devices:
-    #   - "/dev/ttyUSB0:/dev/ttyUSB0"
-    
-    # If connecting via Bluetooth/BLE (Linux):
-    # network_mode: "host" 
-    # volumes:
-    #   - /var/run/dbus/:/var/run/dbus/:z
 
   # 3. Web Server (Frontend UI)
   web:
