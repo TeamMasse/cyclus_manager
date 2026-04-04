@@ -3,3 +3,6 @@ pgdata/
 test.py
 
 __pycache__/
+
+cyclus1.py
+cyclus2.py
