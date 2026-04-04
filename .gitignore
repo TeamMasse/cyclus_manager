@@ -1,3 +1,5 @@
 pgdata/
 
 test.py
+
+__pycache__/
