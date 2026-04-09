@@ -88,3 +88,4 @@ services:
       - ERGOMETERS_CONFIG={"Ergo1":"host.docker.internal:8013", "Ergo2":"host.docker.internal:8023"}
     depends_on:
       - api
+      - redis
