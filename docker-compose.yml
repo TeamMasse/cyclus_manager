@@ -34,8 +34,11 @@ services:
     restart: unless-stopped
     environment:
       - DATABASE_URL=postgresql://ergouser:ergopassword@db:5432/ergodb
+      - ERGOMETERS_CONFIG={"Ergo1":"host.docker.internal:8013", "Ergo2":"host.docker.internal:8023"}
+      - REDIS_URL=redis://redis:6379/0
     depends_on:
       - db
+      - redis
     ports:
       - "8000:8000"
     healthcheck:
@@ -84,5 +87,4 @@ services:
       - REDIS_URL=redis://redis:6379/0
       - ERGOMETERS_CONFIG={"Ergo1":"host.docker.internal:8013", "Ergo2":"host.docker.internal:8023"}
     depends_on:
-      - db
-      - redis
+      - api
