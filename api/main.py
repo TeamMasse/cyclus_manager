@@ -1,10 +1,63 @@
 import os
-from fastapi import FastAPI
 import psycopg
 from contextlib import asynccontextmanager
+import asyncio
+import json
+import uuid
+import redis.asyncio as redis
+from fastapi import FastAPI, HTTPException
+from pydantic import BaseModel
 
+# Global Redis client
+redis_client = None
 DATABASE_URL = os.getenv("DATABASE_URL")
-app = FastAPI()
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    global redis_client
+    redis_url = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+    redis_client = redis.from_url(redis_url)
+    yield
+    await redis_client.close()
+
+app = FastAPI(lifespan=lifespan)
+
+class CommandRequest(BaseModel):
+    command: str
+
+@app.post("/api/ergometers/{label}/command")
+async def send_ergometer_command(label: str, req: CommandRequest):
+    req_id = str(uuid.uuid4()) # Create a unique ID for this HTTP request
+    
+    # 1. Subscribe to the response channel BEFORE sending the command
+    pubsub = redis_client.pubsub()
+    await pubsub.subscribe(f"ergo/responses/{label}")
+    
+    # 2. Publish the command to the Device Manager
+    payload = {"label": label, "command": req.command, "req_id": req_id}
+    await redis_client.publish("ergo/commands", json.dumps(payload))
+    
+    # 3. Wait for the specific response to come back
+    async def wait_for_response():
+        async for message in pubsub.listen():
+            if message['type'] == 'message':
+                data = json.loads(message['data'])
+                # Ensure this response belongs to THIS http request
+                if data.get('req_id') == req_id:
+                    return data
+    try:
+        # Timeout after 3.5 seconds
+        result = await asyncio.wait_for(wait_for_response(), timeout=3.5)
+        await pubsub.unsubscribe()
+        
+        if "error" in result:
+            raise HTTPException(status_code=500, detail=result["error"])
+            
+        return {"status": "success", "response": result.get("response")}
+        
+    except asyncio.TimeoutError:
+        await pubsub.unsubscribe()
+        raise HTTPException(status_code=504, detail="Timeout waiting for Device Manager")
 
 @app.get("/health")
 def health():
