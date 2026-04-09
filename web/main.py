@@ -187,8 +187,8 @@ def page():
             'plot_bgcolor': "#5e6c80",
             'showlegend': 'False',
             'xaxis': {'gridcolor': 'white'},
-            'yaxis': {'gridcolor': 'black'}
-        },
+            'yaxis': {'gridcolor': 'black'},
+        }
     }
     with ui.row():
         ui.plotly(fig).classes('w-80 h-full')
