@@ -1,69 +1,10 @@
-import asyncio
-import json
 import os
-import psycopg
 from fastapi import FastAPI
-import telnetlib3
+import psycopg
 from contextlib import asynccontextmanager
 
-async def handle_ergometer(label, ip_port):
-    ip, port = ip_port.split(':')
-    
-    # Use a while loop for reconnections, NOT recursion!
-    while True:
-        print(f"[{label}] Connecting to {ip}:{port}...")
-        try:
-            # Open an asynchronous TCP connection
-            reader, writer = await asyncio.open_connection(ip, int(port))
-            print(f"[{label}] Connected!")
-
-            while True:
-                # Read data continuously (e.g., until a newline is received)
-                data = await reader.readuntil(b'\n')
-                if not data:
-                    break # Connection closed by ergometer; breaks the inner loop
-                
-                decoded_data = data.decode('utf-8').strip()
-                print(f"[{label}] Telemetry received: {decoded_data}")
-                
-        except Exception as e:
-            print(f"[{label}] Connection error: {e}")
-        finally:
-            print(f"[{label}] Disconnected. Attempting reconnect in 5s...")
-            await asyncio.sleep(5)
-            # The outer while loop will now seamlessly loop back to the top!
-
-# --- 2. FastAPI Lifespan context manager ---
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    # --- STARTUP LOGIC ---
-    print(f"Using database URL: {os.getenv('DATABASE_URL')}")
-    
-    config_str = os.getenv("ERGOMETERS_CONFIG", "{}")
-    ergometers = json.loads(config_str)
-    
-    # Create tasks and store them in app.state so they aren't garbage collected
-    app.state.ergo_tasks = []
-    
-    for label, ip_port in ergometers.items():
-        print(f"Setting up ergometer '{label}' at {ip_port}...")
-        # create_task schedules it to run in the background without blocking!
-        task = asyncio.create_task(handle_ergometer(label, ip_port))
-        app.state.ergo_tasks.append(task)
-        
-    print("All ergometer background tasks started.")
-    
-    # YIELD hands control back to FastAPI so it can start accepting web requests!
-    yield 
-    
-    # --- SHUTDOWN LOGIC ---
-    print("Shutting down ergometer tasks...")
-    for task in app.state.ergo_tasks:
-        task.cancel()
-
-# --- 3. Pass the lifespan to the FastAPI app ---
 DATABASE_URL = os.getenv("DATABASE_URL")
-app = FastAPI(lifespan=lifespan)
+app = FastAPI()
 
 @app.get("/health")
 def health():
@@ -142,6 +83,21 @@ def delete_user(user_id: int):
             cur.execute("DELETE FROM users WHERE id = %s;", (user_id,))
             conn.commit()
     return {"status": "deleted", "id": user_id}
+
+@app.put("/cyclus/{cyclus_id}/setup")
+def setup_cyclus(cyclus_id: int, user_id: int, bicycle_id: int):
+    with psycopg.connect(DATABASE_URL) as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT * FROM users WHERE id = %s;", (user_id,))
+            user = cur.fetchone()
+            print(f"Fetched user: {user}")
+            
+            cur.execute("SELECT * FROM bicycles WHERE id = %s;", (bicycle_id,))
+            bicycle = cur.fetchone()
+            print(f"Fetched bicycle: {bicycle}")
+            
+
+    return {"id": cyclus_id}
 
 @app.get("/bicycles")
 def list_bicycles():
