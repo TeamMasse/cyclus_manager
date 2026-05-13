@@ -1,4 +1,5 @@
 import os
+from datetime import datetime
 import psycopg
 from contextlib import asynccontextmanager
 import asyncio
@@ -10,7 +11,7 @@ from pydantic import BaseModel
 
 # Global Redis client
 redis_client = None
-DATABASE_URL = os.getenv("DATABASE_URL")
+ENV_DATABASE_URL = os.getenv("DATABASE_URL")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -59,20 +60,25 @@ async def send_ergometer_command(label: str, req: CommandRequest):
         await pubsub.unsubscribe()
         raise HTTPException(status_code=504, detail="Timeout waiting for Device Manager")
 
+@app.post("/api/ergometers/{label}/time")
+async def set_ergometer_time(label: str):
+    response = await send_ergometer_command(label, CommandRequest(command="time=" + datetime.now().strftime("%d.%m.%Y %H:%M:%S")))
+    return response
+
 @app.get("/health")
 def health():
     return {"status": "healthy"}
 
 @app.get("/health/db")
 def db_health():
-    with psycopg.connect(DATABASE_URL) as conn:
+    with psycopg.connect(ENV_DATABASE_URL) as conn:
         with conn.cursor() as cur:
             cur.execute("SELECT 1;")
             return {"db_ok": cur.fetchone()[0] == 1}
 
 @app.get("/users")
 def list_users():
-    with psycopg.connect(DATABASE_URL) as conn:
+    with psycopg.connect(ENV_DATABASE_URL) as conn:
         with conn.cursor() as cur:
             cur.execute("SELECT * FROM users;")
             rows = cur.fetchall()
@@ -80,7 +86,7 @@ def list_users():
 
 @app.post("/users")
 def create_user(user: dict):
-    with psycopg.connect(DATABASE_URL) as conn:
+    with psycopg.connect(ENV_DATABASE_URL) as conn:
         with conn.cursor() as cur:
             cur.execute(
                 '''
@@ -106,7 +112,7 @@ def create_user(user: dict):
 
 @app.put("/users/{user_id}")
 def update_user(user_id: int, user: dict):
-    with psycopg.connect(DATABASE_URL) as conn:
+    with psycopg.connect(ENV_DATABASE_URL) as conn:
         with conn.cursor() as cur:
             cur.execute(
                 '''
@@ -131,7 +137,7 @@ def update_user(user_id: int, user: dict):
 
 @app.delete("/users/{user_id}")
 def delete_user(user_id: int):
-    with psycopg.connect(DATABASE_URL) as conn:
+    with psycopg.connect(ENV_DATABASE_URL) as conn:
         with conn.cursor() as cur:
             cur.execute("DELETE FROM users WHERE id = %s;", (user_id,))
             conn.commit()
@@ -139,7 +145,7 @@ def delete_user(user_id: int):
 
 @app.put("/cyclus/{cyclus_id}/setup")
 def setup_cyclus(cyclus_id: int, user_id: int, bicycle_id: int):
-    with psycopg.connect(DATABASE_URL) as conn:
+    with psycopg.connect(ENV_DATABASE_URL) as conn:
         with conn.cursor() as cur:
             cur.execute("SELECT * FROM users WHERE id = %s;", (user_id,))
             user = cur.fetchone()
@@ -154,7 +160,7 @@ def setup_cyclus(cyclus_id: int, user_id: int, bicycle_id: int):
 
 @app.get("/bicycles")
 def list_bicycles():
-    with psycopg.connect(DATABASE_URL) as conn:
+    with psycopg.connect(ENV_DATABASE_URL) as conn:
         with conn.cursor() as cur:
             cur.execute("SELECT * FROM bicycles;")
             rows = cur.fetchall()
@@ -162,7 +168,7 @@ def list_bicycles():
 
 @app.post("/bicycles")
 def create_bicycle(bicycle: dict):
-    with psycopg.connect(DATABASE_URL) as conn:
+    with psycopg.connect(ENV_DATABASE_URL) as conn:
         with conn.cursor() as cur:
             cur.execute(
                 '''
@@ -186,7 +192,7 @@ def create_bicycle(bicycle: dict):
 
 @app.put("/bicycles/{bicycle_id}")
 def update_bicycle(bicycle_id: int, bicycle: dict):
-    with psycopg.connect(DATABASE_URL) as conn:
+    with psycopg.connect(ENV_DATABASE_URL) as conn:
         with conn.cursor() as cur:
             cur.execute(
                 '''
@@ -209,7 +215,7 @@ def update_bicycle(bicycle_id: int, bicycle: dict):
 
 @app.delete("/bicycles/{bicycle_id}")
 def delete_bicycle(bicycle_id: int):
-    with psycopg.connect(DATABASE_URL) as conn:
+    with psycopg.connect(ENV_DATABASE_URL) as conn:
         with conn.cursor() as cur:
             cur.execute("DELETE FROM bicycles WHERE id = %s;", (bicycle_id,))
             conn.commit()
@@ -217,7 +223,7 @@ def delete_bicycle(bicycle_id: int):
 
 @app.get("/training_plans")
 def list_training_plans():
-    with psycopg.connect(DATABASE_URL) as conn:
+    with psycopg.connect(ENV_DATABASE_URL) as conn:
         with conn.cursor() as cur:
             cur.execute("SELECT * FROM training_plans;")
             rows = cur.fetchall()
@@ -225,7 +231,7 @@ def list_training_plans():
 
 @app.get("/training_sessions")
 def list_training_sessions():
-    with psycopg.connect(DATABASE_URL) as conn:
+    with psycopg.connect(ENV_DATABASE_URL) as conn:
         with conn.cursor() as cur:
             cur.execute("SELECT training_sessions.id,users.first_name,bicycles.label,training_plans.label,training_sessions.date,training_sessions.duration_s,training_sessions.distance_km,training_sessions.average_speed_kmh,training_sessions.average_power_w,training_sessions.file_path FROM training_sessions join users on training_sessions.user_id = users.id join bicycles on training_sessions.bicycle_id = bicycles.id join training_plans on training_sessions.training_plan_id = training_plans.id;")
             rows = cur.fetchall()
