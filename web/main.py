@@ -3,6 +3,92 @@ import os
 import json
 from nicegui import events, app, ui
 import httpx
+import redis.asyncio as redis
+
+# --- Global State ---
+# This holds the live telemetry data for all ergometers
+live_data = {}
+for key in json.loads(os.getenv("ERGOMETERS_CONFIG", "{}")).keys():
+    live_data[key] = {
+        "time": [],
+        "distance": [],
+        "crank_rotations": [],
+        "work": [],
+        "cadence": [],
+        "heart_rate": [],
+        "speed": [],
+        "transmission": [],
+        "pedal_force": [],
+        "power": [],
+        "inclination": [],
+        "work_per_heatbeat": [],
+        "virtual_chainring": [],
+        "virtual_sprocket": [],
+    }
+
+
+# --- Background Task: Listen to Redis ---
+async def redis_listener():
+    """
+    Runs in the background, reading Redis and updating the global state.
+    """
+    
+    r = redis.from_url(os.getenv("REDIS_URL", "redis://localhost:6379/0"))
+    pubsub = r.pubsub()
+
+    # Subscribe to all telemetry channels using a wildcard pattern
+    await pubsub.psubscribe("ergo/telemetry/*")
+    print("NiceGUI connected to Redis telemetry stream.")
+
+    try:
+        async for message in pubsub.listen():
+            if message["type"] == "pmessage":
+                # Extract which ergo this is from the channel name
+                channel = message["channel"].decode("utf-8")
+                label = channel.split("/")[-1]  # e.g., "Ergo1"
+
+                # Assume your Controller publishes JSON like: {"watts": 250, "rpm": 90}
+                raw_data = message["data"].decode("utf-8")
+                telemetry = json.loads(raw_data)
+
+                # Update global state
+                if label in live_data:
+                    live_data[label]["time"].append(telemetry.get("time", 0))
+                    live_data[label]["distance"].append(telemetry.get("distance", 0))
+                    live_data[label]["crank_rotations"].append(telemetry.get("crank_rotations", 0))
+                    live_data[label]["work"].append(telemetry.get("work", 0))
+                    live_data[label]["cadence"].append(telemetry.get("rpm", 0))
+                    live_data[label]["heart_rate"].append(telemetry.get("heart_rate", 0))
+                    live_data[label]["speed"].append(telemetry.get("speed", 0))
+                    live_data[label]["transmission"].append(telemetry.get("transmission", 0))
+                    live_data[label]["pedal_force"].append(telemetry.get("pedal_force", 0))
+                    live_data[label]["power"].append(telemetry.get("watts", 0))
+                    live_data[label]["inclination"].append(telemetry.get("inclination", 0))
+                    live_data[label]["work_per_heatbeat"].append(telemetry.get("work_per_heatbeat", 0))
+                    live_data[label]["virtual_chainring"].append(telemetry.get("virtual_chainring", 0))
+                    live_data[label]["virtual_sprocket"].append(telemetry.get("virtual_sprocket", 0))
+
+                    if len(live_data[label]["time"]) > 3600:
+                        live_data[label]["time"].pop(0)
+                        live_data[label]["distance"].pop(0)
+                        live_data[label]["crank_rotations"].pop(0)
+                        live_data[label]["work"].pop(0)
+                        live_data[label]["cadence"].pop(0)
+                        live_data[label]["heart_rate"].pop(0)
+                        live_data[label]["speed"].pop(0)
+                        live_data[label]["transmission"].pop(0)
+                        live_data[label]["pedal_force"].pop(0)
+                        live_data[label]["power"].pop(0)
+                        live_data[label]["inclination"].pop(0)
+                        live_data[label]["work_per_heatbeat"].pop(0)
+                        live_data[label]["virtual_chainring"].pop(0)
+                        live_data[label]["virtual_sprocket"].pop(0)
+
+    except Exception as e:
+        print(f"Redis listener crashed: {e}")
+
+
+app.on_startup(redis_listener)
 
 app.colors(
     primary="#575757",
@@ -205,10 +291,26 @@ async def sent_command(api_url: str, command: str | None = None):
 @ui.page("/")
 async def page():
     page_header_title("Cyclus Manager")
-    
+
     ERGOMETERS_CONFIG = json.loads(os.getenv("ERGOMETERS_CONFIG", "{}"))
-    
+
     with ui.row().classes("w-full"):
+        async with httpx.AsyncClient() as client:
+            res = await client.get(str("http://api:8000/bicycles"))
+            res.raise_for_status()
+            bicycle_options = {}
+            for bicycle in res.json():
+                bicycle_options[bicycle["id"]] = f"{bicycle['label']}"
+
+        async with httpx.AsyncClient() as client:
+            res = await client.get(str("http://api:8000/users"))
+            res.raise_for_status()
+            athlete_options = {}
+            for athlete in res.json():
+                athlete_options[athlete["id"]] = (
+                    f"{athlete['first_name']} {athlete['last_name']}"
+                )
+
         for key, value in ERGOMETERS_CONFIG.items():
             with ui.card().classes("flex-1"):
                 with ui.row().classes("w-full items-center"):
@@ -222,7 +324,28 @@ async def page():
 
                     ui.space()
                     ui.button("Set time", on_click=set_time)
-                    
+
+                with ui.row().classes("w-full items-center"):
+
+                    athlete_select = ui.select(
+                        athlete_options, label="Athlete", value=1
+                    )
+
+                    bicycle_select = ui.select(bicycle_options, label="Bike", value=1)
+
+                    async def setup(
+                        k=key,
+                        athlete_select=athlete_select,
+                        bicycle_select=bicycle_select,
+                    ):
+                        result = await sent_command(
+                            f"http://api:8000/api/ergometers/{k}/setup?user_id={athlete_select.value}&bicycle_id={bicycle_select.value}"
+                        )
+                        ui.notify(str(result))
+
+                    ui.space()
+                    ui.button("Set up", on_click=setup)
+
                 fig = {
                     "data": [
                         {
