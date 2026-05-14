@@ -65,7 +65,7 @@ async def set_ergometer_time(label: str):
     response = await send_ergometer_command(label, CommandRequest(command="time=" + datetime.now().strftime("%d.%m.%Y %H:%M:%S")))
     return response
 
-@app.put("/api/ergometer/{label}/setup")
+@app.post("/api/ergometers/{label}/setup")
 async def setup_cyclus(label: str, user_id: int, bicycle_id: int):
     with psycopg.connect(ENV_DATABASE_URL) as conn:
         with conn.cursor() as cur:
