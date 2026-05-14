@@ -35,6 +35,7 @@ class ErgometerDevice:
                         self._last_response = decoded
                     else:
                         # Publish passive telemetry to Redis for the UI to consume
+                        # Note: publish telemetry as json or parse in UI as needed. For now, just raw string.
                         await self.redis.publish(f"ergo/telemetry/{self.label}", decoded)
                         # print(f"[{self.label}] Telemetry: {decoded}")
 
