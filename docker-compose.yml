@@ -33,9 +33,9 @@ services:
     container_name: ergo_api
     restart: unless-stopped
     environment:
-      - DATABASE_URL=postgresql://ergouser:ergopassword@db:5432/ergodb
-      - ERGOMETERS_CONFIG={"Ergo1":"host.docker.internal:8013", "Ergo2":"host.docker.internal:8023"}
-      - REDIS_URL=redis://redis:6379/0
+      - DATABASE_URL=${DATABASE_URL}
+      - ERGOMETERS_CONFIG=${ERGOMETERS_CONFIG}
+      - REDIS_URL=${REDIS_URL}
     depends_on:
       - db
       - redis
@@ -52,6 +52,8 @@ services:
   web:
     image: zauberzeug/nicegui:latest
     restart: always
+    environment:
+      - ERGOMETERS_CONFIG=${ERGOMETERS_CONFIG}
     ports:
         - 80:8080
     volumes:
@@ -83,9 +85,9 @@ services:
     container_name: ergo_controller
     restart: unless-stopped
     environment:
-      - DATABASE_URL=postgresql://ergouser:ergopassword@db:5432/ergodb
-      - REDIS_URL=redis://redis:6379/0
-      - ERGOMETERS_CONFIG={"Ergo1":"host.docker.internal:8013", "Ergo2":"host.docker.internal:8023"}
+      - DATABASE_URL=${DATABASE_URL}
+      - REDIS_URL=${REDIS_URL}
+      - ERGOMETERS_CONFIG=${ERGOMETERS_CONFIG}
     depends_on:
       - api
       - redis
