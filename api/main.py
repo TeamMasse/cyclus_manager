@@ -65,6 +65,22 @@ async def set_ergometer_time(label: str):
     response = await send_ergometer_command(label, CommandRequest(command="time=" + datetime.now().strftime("%d.%m.%Y %H:%M:%S")))
     return response
 
+@app.put("/api/ergometer/{label}/setup")
+async def setup_cyclus(label: str, user_id: int, bicycle_id: int):
+    with psycopg.connect(ENV_DATABASE_URL) as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT * FROM users WHERE id = %s;", (user_id,))
+            user = cur.fetchone()
+            response1 = await send_ergometer_command(label, CommandRequest(command=f"user1=0,{user[1]},{user[2]},{datetime.strftime(user[3], '%d.%m.%Y')},{user[4]},{user[5]},{user[6]},{user[7]},{user[8]}"))
+            #print(f"Fetched user: {user}") #Fetched user: (1, 'Theo', 'Fischer', datetime.date(2006, 6, 13), 1, 95.0, 1.92, 0.5, 0.3)
+            
+            cur.execute("SELECT * FROM bicycles WHERE id = %s;", (bicycle_id,))
+            bicycle = cur.fetchone()
+            response2 = await send_ergometer_command(label, CommandRequest(command=f"cycle1=0,{bicycle[2]},{bicycle[3]},{bicycle[4]},{bicycle[5]},{bicycle[6]},{bicycle[5]},{bicycle[6]}"))
+            #print(f"Fetched bicycle: {bicycle}") #Fetched bicycle: (1, 'FES', 0.68, 0.17, 6.8, 57, 12)
+            
+    return {"id": label, "user_response": response1, "bicycle_response": response2}
+
 @app.get("/health")
 def health():
     return {"status": "healthy"}
@@ -142,21 +158,6 @@ def delete_user(user_id: int):
             cur.execute("DELETE FROM users WHERE id = %s;", (user_id,))
             conn.commit()
     return {"status": "deleted", "id": user_id}
-
-@app.put("/cyclus/{cyclus_id}/setup")
-def setup_cyclus(cyclus_id: int, user_id: int, bicycle_id: int):
-    with psycopg.connect(ENV_DATABASE_URL) as conn:
-        with conn.cursor() as cur:
-            cur.execute("SELECT * FROM users WHERE id = %s;", (user_id,))
-            user = cur.fetchone()
-            print(f"Fetched user: {user}")
-            
-            cur.execute("SELECT * FROM bicycles WHERE id = %s;", (bicycle_id,))
-            bicycle = cur.fetchone()
-            print(f"Fetched bicycle: {bicycle}")
-            
-
-    return {"id": cyclus_id}
 
 @app.get("/bicycles")
 def list_bicycles():
