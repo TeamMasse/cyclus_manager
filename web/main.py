@@ -329,7 +329,9 @@ async def page():
         data_crank_rotations = list(
             zip(live_data[ergo_key]["time"], live_data[ergo_key]["crank_rotations"])
         )
-        data_work = list(zip(live_data[ergo_key]["time"], live_data[ergo_key]["work"]))
+        data_work = list(
+            zip(live_data[ergo_key]["time"], live_data[ergo_key]["work"])
+        )
         data_cadence = list(
             zip(live_data[ergo_key]["time"], live_data[ergo_key]["cadence"])
         )
@@ -359,16 +361,76 @@ async def page():
                 "selected": ensure_legend_state(ergo_key),
             },
             "series": [
-                {"type": "line", "name": "Distance", "showSymbol": False, "data": data_distance},
-                {"type": "line", "name": "Crank Rotations", "showSymbol": False, "data": data_crank_rotations},
-                {"type": "line", "name": "Work", "showSymbol": False, "data": data_work},
-                {"type": "line", "name": "Cadence", "showSymbol": False, "data": data_cadence},
-                {"type": "line", "name": "Heart Rate", "showSymbol": False, "data": data_heart_rate},
-                {"type": "line", "name": "Speed", "showSymbol": False, "data": data_speed},
-                {"type": "line", "name": "Transmission", "showSymbol": False, "data": data_transmission},
-                {"type": "line", "name": "Pedal Force", "showSymbol": False, "data": data_pedal_force},
-                {"type": "line", "name": "Power", "showSymbol": False, "data": data_power},
-                {"type": "line", "name": "Inclination", "showSymbol": False, "data": data_inclination},
+                {
+                    "type": "line",
+                    "name": "Distance",
+                    "symbol": "diamond",
+                    "showSymbol": False,
+                    "data": data_distance,
+                },
+                {
+                    "type": "line",
+                    "name": "Crank Rotations",
+                    "symbol": "diamond",
+                    "showSymbol": False,
+                    "data": data_crank_rotations,
+                },
+                {
+                    "type": "line",
+                    "name": "Work",
+                    "symbol": "diamond",                   
+                    "showSymbol": False,
+                    "data": data_work,
+                },
+                {
+                    "type": "line",
+                    "name": "Cadence",
+                    "symbol": "diamond",
+                    "showSymbol": False,
+                    "data": data_cadence,
+                },
+                {
+                    "type": "line",
+                    "name": "Heart Rate",
+                    "symbol": "diamond",
+                    "showSymbol": False,
+                    "data": data_heart_rate,
+                },
+                {
+                    "type": "line",
+                    "name": "Speed",
+                    "symbol": "diamond",
+                    "showSymbol": False,
+                    "data": data_speed,
+                },
+                {
+                    "type": "line",
+                    "name": "Transmission",
+                    "symbol": "diamond",
+                    "showSymbol": False,
+                    "data": data_transmission,
+                },
+                {
+                    "type": "line",
+                    "name": "Pedal Force",
+                    "symbol": "diamond",
+                    "showSymbol": False,
+                    "data": data_pedal_force,
+                },
+                {
+                    "type": "line",
+                    "name": "Power",
+                    "symbol": "diamond",
+                    "showSymbol": False,
+                    "data": data_power,
+                },
+                {
+                    "type": "line",
+                    "name": "Inclination",
+                    "symbol": "diamond",
+                    "showSymbol": False,
+                    "data": data_inclination,
+                },
             ],
         }
 
@@ -439,7 +501,10 @@ async def page():
 
                     current = ensure_legend_state(ergo_key)
                     current.update(
-                        {str(name): bool(is_visible) for name, is_visible in selected.items()}
+                        {
+                            str(name): bool(is_visible)
+                            for name, is_visible in selected.items()
+                        }
                     )
                     print(
                         f"[legend] {ergo_key} updated selection: {json.dumps(current, sort_keys=True)}"
