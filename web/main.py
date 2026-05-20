@@ -8,6 +8,7 @@ import redis.asyncio as redis
 # --- Global State ---
 # This holds the live telemetry data for all ergometers
 live_data = {}
+data_version = {}
 for key in json.loads(os.getenv("ERGOMETERS_CONFIG", "{}")).keys():
     live_data[key] = {
         "time": [],
@@ -25,6 +26,7 @@ for key in json.loads(os.getenv("ERGOMETERS_CONFIG", "{}")).keys():
         "virtual_chainring": [],
         "virtual_sprocket": [],
     }
+    data_version[key] = 0
 
 
 # --- Background Task: Listen to Redis ---
@@ -32,7 +34,7 @@ async def redis_listener():
     """
     Runs in the background, reading Redis and updating the global state.
     """
-    
+
     r = redis.from_url(os.getenv("REDIS_URL", "redis://localhost:6379/0"))
     pubsub = r.pubsub()
 
@@ -49,24 +51,28 @@ async def redis_listener():
 
                 # Assume your Controller publishes JSON like: {"watts": 250, "rpm": 90}
                 raw_data = message["data"].decode("utf-8")
-                telemetry = json.loads(raw_data)
+                print(f"Received telemetry for {label}: {raw_data}")
+                telemetry = raw_data[7:].split(
+                    ","
+                )  # Adjust parsing based on your actual data format
 
                 # Update global state
                 if label in live_data:
-                    live_data[label]["time"].append(telemetry.get("time", 0))
-                    live_data[label]["distance"].append(telemetry.get("distance", 0))
-                    live_data[label]["crank_rotations"].append(telemetry.get("crank_rotations", 0))
-                    live_data[label]["work"].append(telemetry.get("work", 0))
-                    live_data[label]["cadence"].append(telemetry.get("rpm", 0))
-                    live_data[label]["heart_rate"].append(telemetry.get("heart_rate", 0))
-                    live_data[label]["speed"].append(telemetry.get("speed", 0))
-                    live_data[label]["transmission"].append(telemetry.get("transmission", 0))
-                    live_data[label]["pedal_force"].append(telemetry.get("pedal_force", 0))
-                    live_data[label]["power"].append(telemetry.get("watts", 0))
-                    live_data[label]["inclination"].append(telemetry.get("inclination", 0))
-                    live_data[label]["work_per_heatbeat"].append(telemetry.get("work_per_heatbeat", 0))
-                    live_data[label]["virtual_chainring"].append(telemetry.get("virtual_chainring", 0))
-                    live_data[label]["virtual_sprocket"].append(telemetry.get("virtual_sprocket", 0))
+                    live_data[label]["time"].append(int(telemetry[0]))
+                    live_data[label]["distance"].append(float(telemetry[1]))
+                    live_data[label]["crank_rotations"].append(float(telemetry[2]))
+                    live_data[label]["work"].append(float(telemetry[3]))
+                    live_data[label]["cadence"].append(float(telemetry[4]))
+                    live_data[label]["heart_rate"].append(float(telemetry[5]))
+                    live_data[label]["speed"].append(float(telemetry[6]))
+                    live_data[label]["transmission"].append(float(telemetry[7]))
+                    live_data[label]["pedal_force"].append(float(telemetry[8]))
+                    live_data[label]["power"].append(float(telemetry[9]))
+                    live_data[label]["inclination"].append(float(telemetry[10]))
+                    live_data[label]["work_per_heatbeat"].append(float(telemetry[11]))
+                    live_data[label]["virtual_chainring"].append(int(telemetry[12]))
+                    live_data[label]["virtual_sprocket"].append(int(telemetry[13]))
+                    data_version[label] += 1
 
                     if len(live_data[label]["time"]) > 3600:
                         live_data[label]["time"].pop(0)
@@ -101,6 +107,20 @@ app.colors(
     info="#31ccec",
     warning="#ff0000",
 )
+
+
+DEFAULT_LEGEND_SELECTED = {
+    "Distance": False,
+    "Crank Rotations": False,
+    "Work": False,
+    "Cadence": True,
+    "Heart Rate": True,
+    "Speed": True,
+    "Transmission": False,
+    "Pedal Force": False,
+    "Power": True,
+    "Inclination": False,
+}
 
 
 def page_header_title(title):
@@ -293,7 +313,66 @@ async def page():
     page_header_title("Cyclus Manager")
 
     ERGOMETERS_CONFIG = json.loads(os.getenv("ERGOMETERS_CONFIG", "{}"))
+    legend_state = {}
 
+    def ensure_legend_state(ergo_key: str) -> dict:
+        if ergo_key not in legend_state:
+            legend_state[ergo_key] = dict(DEFAULT_LEGEND_SELECTED)
+        return legend_state[ergo_key]
+
+    ui.label(str(live_data))
+
+    def build_chart_options(ergo_key: str) -> dict:
+        data_distance = list(
+            zip(live_data[ergo_key]["time"], live_data[ergo_key]["distance"])
+        )
+        data_crank_rotations = list(
+            zip(live_data[ergo_key]["time"], live_data[ergo_key]["crank_rotations"])
+        )
+        data_work = list(zip(live_data[ergo_key]["time"], live_data[ergo_key]["work"]))
+        data_cadence = list(
+            zip(live_data[ergo_key]["time"], live_data[ergo_key]["cadence"])
+        )
+        data_heart_rate = list(
+            zip(live_data[ergo_key]["time"], live_data[ergo_key]["heart_rate"])
+        )
+        data_speed = list(
+            zip(live_data[ergo_key]["time"], live_data[ergo_key]["speed"])
+        )
+        data_transmission = list(
+            zip(live_data[ergo_key]["time"], live_data[ergo_key]["transmission"])
+        )
+        data_pedal_force = list(
+            zip(live_data[ergo_key]["time"], live_data[ergo_key]["pedal_force"])
+        )
+        data_power = list(
+            zip(live_data[ergo_key]["time"], live_data[ergo_key]["power"])
+        )
+        data_inclination = list(
+            zip(live_data[ergo_key]["time"], live_data[ergo_key]["inclination"])
+        )
+        return {
+            "xAxis": {"type": "time"},
+            "yAxis": {"type": "value"},
+            "legend": {
+                "textStyle": {"color": "gray"},
+                "selected": ensure_legend_state(ergo_key),
+            },
+            "series": [
+                {"type": "line", "name": "Distance", "showSymbol": False, "data": data_distance},
+                {"type": "line", "name": "Crank Rotations", "showSymbol": False, "data": data_crank_rotations},
+                {"type": "line", "name": "Work", "showSymbol": False, "data": data_work},
+                {"type": "line", "name": "Cadence", "showSymbol": False, "data": data_cadence},
+                {"type": "line", "name": "Heart Rate", "showSymbol": False, "data": data_heart_rate},
+                {"type": "line", "name": "Speed", "showSymbol": False, "data": data_speed},
+                {"type": "line", "name": "Transmission", "showSymbol": False, "data": data_transmission},
+                {"type": "line", "name": "Pedal Force", "showSymbol": False, "data": data_pedal_force},
+                {"type": "line", "name": "Power", "showSymbol": False, "data": data_power},
+                {"type": "line", "name": "Inclination", "showSymbol": False, "data": data_inclination},
+            ],
+        }
+
+    chart_state = {}
     with ui.row().classes("w-full"):
         async with httpx.AsyncClient() as client:
             res = await client.get(str("http://api:8000/bicycles"))
@@ -346,30 +425,48 @@ async def page():
                     ui.space()
                     ui.button("Set up", on_click=setup)
 
-                fig = {
-                    "data": [
-                        {
-                            "type": "scatter",
-                            "name": "Trace 1",
-                            "x": [1, 2, 3, 4],
-                            "y": [2, 5, 6, 1],
-                        },
-                        {
-                            "type": "scatter",
-                            "name": "Trace 2",
-                            "x": [1, 2, 3, 4],
-                            "y": [21, 5, -5, 1],
-                        },
-                    ],
-                    "layout": {
-                        "margin": {"l": 15, "r": 15, "t": 0, "b": 15},
-                        "plot_bgcolor": "#5e6c80",
-                        "showlegend": "False",
-                        "xaxis": {"gridcolor": "white"},
-                        "yaxis": {"gridcolor": "black"},
-                    },
+                echart = ui.echart(build_chart_options(key))
+
+                def on_legend_select_changed(
+                    e: events.GenericEventArguments, ergo_key=key
+                ) -> None:
+                    if not isinstance(e.args, dict):
+                        return
+
+                    selected = e.args.get("selected")
+                    if not isinstance(selected, dict):
+                        return
+
+                    current = ensure_legend_state(ergo_key)
+                    current.update(
+                        {str(name): bool(is_visible) for name, is_visible in selected.items()}
+                    )
+                    print(
+                        f"[legend] {ergo_key} updated selection: {json.dumps(current, sort_keys=True)}"
+                    )
+
+                echart.on("chart:legendselectchanged", on_legend_select_changed)
+                chart_state[key] = {
+                    "chart": echart,
+                    "rendered_version": data_version[key],
                 }
-                ui.plotly(fig).classes("w-full h-full")
+
+    def refresh_charts() -> None:
+        for ergo_key, state in chart_state.items():
+            if state["rendered_version"] == data_version[ergo_key]:
+                continue
+
+            print(
+                f"[refresh] {ergo_key} data_version={data_version[ergo_key]} legend={json.dumps(ensure_legend_state(ergo_key), sort_keys=True)}"
+            )
+            chart = state["chart"]
+            new_options = build_chart_options(ergo_key)
+            chart.options.update(new_options)
+            chart.update()
+            state["rendered_version"] = data_version[ergo_key]
+
+    # Throttle redraws to at most one update per second, while still reacting to fresh data.
+    ui.timer(1.0, refresh_charts)
 
 
 @ui.page("/settings")
