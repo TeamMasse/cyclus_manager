@@ -452,7 +452,7 @@ async def page():
                     f"{athlete['first_name']} {athlete['last_name']}"
                 )
 
-        for key, value in ERGOMETERS_CONFIG.items():
+        for key, _ in ERGOMETERS_CONFIG.items():
             with ui.card().classes("flex-1"):
                 with ui.row().classes("w-full items-center"):
                     ui.label(f"{key}").style("font-size: 24px;")
