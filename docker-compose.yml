@@ -61,6 +61,7 @@ services:
         - 80:8080
     volumes:
         - ./web/:/app/
+        - ./training_plans:/app/training_plans:w
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/', timeout=5)"]
       interval: 30s
@@ -94,3 +95,5 @@ services:
     depends_on:
       - api
       - redis
+    volumes:
+      - ./training_plans:/training_plans:r
