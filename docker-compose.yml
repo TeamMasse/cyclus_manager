@@ -62,6 +62,7 @@ services:
     volumes:
         - ./web/:/app/
         - ./training_plans:/app/training_plans:w
+        - ./training_sessions:/app/training_sessions:r
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/', timeout=5)"]
       interval: 30s
