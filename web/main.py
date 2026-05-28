@@ -920,8 +920,182 @@ async def training_sessions_page():
         async with httpx.AsyncClient() as client:
             response = await client.get("http://api:8000/training_sessions")
             return response.json()
-
+        
+    async def read_training_session_from_file(session_id):
+        data = []
+        with open(f"./training_sessions/{session_id}.data", "r") as f:
+            for line in f:
+                values = line[5:].strip().split(",")
+                time, distance, crank_rotations, work, cadence, heart_rate, speed, transmission, pedal_force, power, inclination, work_per_heartbeat, virtual_chainring, virtual_sprocket = values
+                data.append({
+                    "time": int(time),
+                    "distance": float(distance),
+                    "crank_rotations": float(crank_rotations),
+                    "work": float(work),
+                    "cadence": float(cadence),
+                    "heart_rate": float(heart_rate),
+                    "speed": float(speed),
+                    "transmission": float(transmission),
+                    "pedal_force": float(pedal_force),
+                    "power": float(power),
+                    "inclination": float(inclination),
+                    "work_per_heatbeat": float(work_per_heartbeat),
+                    "virtual_chainring": int(virtual_chainring),
+                    "virtual_sprocket": int(virtual_sprocket),
+                })
+        return data
     
+    legend_state = {
+        "Distance": False,
+        "Crank Rotations": False,
+        "Work": False,
+        "Cadence": True,
+        "Heart Rate": True,
+        "Speed": True,
+        "Transmission": False,
+        "Pedal Force": False,
+        "Power": True,
+        "Inclination": False,
+    }
+    
+    def build_chart_options(session_id: int) -> dict:
+        data = read_training_session_from_file(session_id) if session_id else []     
+        data_distance = list(
+            zip(data["time"], data["distance"])
+            ) if session_id else []
+        data_crank_rotations = list(
+            zip(data["time"], data["crank_rotations"])
+            ) if session_id else []
+        data_work = list(
+            zip(data["time"], data["work"])
+            ) if session_id else []
+        data_cadence = list(
+            zip(data["time"], data["cadence"])
+            ) if session_id else []
+        data_heart_rate = list(
+            zip(data["time"], data["heart_rate"])
+            ) if session_id else []
+        data_speed = list(
+            zip(data["time"], data["speed"])
+            ) if session_id else []
+        data_transmission = list(
+            zip(data["time"], data["transmission"])
+            ) if session_id else []
+        data_pedal_force = list(
+            zip(data["time"], data["pedal_force"])
+            ) if session_id else []
+        data_power = list(
+            zip(data["time"], data["power"])
+            ) if session_id else []
+        data_inclination = list(
+            zip(data["time"], data["inclination"])
+            ) if session_id else []
+        return {
+            "xAxis": {"type": "time"},
+            "yAxis": {"type": "value"},
+            "legend": {
+                "textStyle": {"color": "gray"},
+                "selected": legend_state,
+            },
+            "series": [
+                {
+                    "type": "line",
+                    "name": "Distance",
+                    "symbol": "diamond",
+                    "showSymbol": False,
+                    "data": data_distance,
+                },
+                {
+                    "type": "line",
+                    "name": "Crank Rotations",
+                    "symbol": "diamond",
+                    "showSymbol": False,
+                    "data": data_crank_rotations,
+                },
+                {
+                    "type": "line",
+                    "name": "Work",
+                    "symbol": "diamond",
+                    "showSymbol": False,
+                    "data": data_work,
+                },
+                {
+                    "type": "line",
+                    "name": "Cadence",
+                    "symbol": "diamond",
+                    "showSymbol": False,
+                    "data": data_cadence,
+                },
+                {
+                    "type": "line",
+                    "name": "Heart Rate",
+                    "symbol": "diamond",
+                    "showSymbol": False,
+                    "data": data_heart_rate,
+                },
+                {
+                    "type": "line",
+                    "name": "Speed",
+                    "symbol": "diamond",
+                    "showSymbol": False,
+                    "data": data_speed,
+                },
+                {
+                    "type": "line",
+                    "name": "Transmission",
+                    "symbol": "diamond",
+                    "showSymbol": False,
+                    "data": data_transmission,
+                },
+                {
+                    "type": "line",
+                    "name": "Pedal Force",
+                    "symbol": "diamond",
+                    "showSymbol": False,
+                    "data": data_pedal_force,
+                },
+                {
+                    "type": "line",
+                    "name": "Power",
+                    "symbol": "diamond",
+                    "showSymbol": False,
+                    "data": data_power,
+                },
+                {
+                    "type": "line",
+                    "name": "Inclination",
+                    "symbol": "diamond",
+                    "showSymbol": False,
+                    "data": data_inclination,
+                },
+            ],
+        }
+    
+    echart = ui.echart(build_chart_options(session_id=None))
+
+    def on_legend_select_changed(
+                    e: events.GenericEventArguments, ergo_key=key
+                ) -> None:
+                    if not isinstance(e.args, dict):
+                        return
+
+                    selected = e.args.get("selected")
+                    if not isinstance(selected, dict):
+                        return
+
+                    current = legend_state
+                    current.update(
+                        {
+                            str(name): bool(is_visible)
+                            for name, is_visible in selected.items()
+                        }
+                    )
+                    print(
+                        f"[legend] {ergo_key} updated selection: {json.dumps(current, sort_keys=True)}"
+                    )
+
+    echart.on("chart:legendselectchanged", on_legend_select_changed)
+                
     user_fields = [
         {"name": "id", "label": "ID", "type": "number", "editable": False},
         {"name": "user_id", "label": "User", "type": "number", "editable": False},
