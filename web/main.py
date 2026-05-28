@@ -178,6 +178,7 @@ def create_api_table(api_url: str, fields: list):
                 "label": f["label"],
                 "field": f["name"],
                 "align": f.get("align", "left"),
+                "sortable": f.get("sortable", True),
             }
         )
 
@@ -197,6 +198,20 @@ def create_api_table(api_url: str, fields: list):
     for f in fields:
         field_name = f["name"]
         col_type = f.get("type", "text")
+        editable = f.get("editable", True)
+
+        if col_type == "action":
+            body_html += f"""
+            <q-td key="{field_name}" :props="props">
+                <q-btn
+                    size="sm"
+                    color="primary"
+                    label="{f['name']}"
+                    @click="$parent.$emit('{field_name}', (props.row && props.row.id !== undefined) ? props.row.id : props.row)"
+                />
+            </q-td>
+            """
+            continue
 
         # Use different Vue inputs based on data type
         if col_type == "number":
@@ -205,7 +220,14 @@ def create_api_table(api_url: str, fields: list):
             input_tag = '<q-input v-model="scope.value" dense autofocus counter @keyup.enter="scope.set" />'
 
         # Note: We use {{{{ }}}} to output {{ }} in the final Vue template through Python's f-string
-        body_html += f"""
+        if not editable:
+            body_html += f"""
+        <q-td key="{field_name}" :props="props">
+            {{{{ props.row.{field_name} }}}}
+        </q-td>
+        """
+        else:
+            body_html += f"""
         <q-td key="{field_name}" :props="props">
             {{{{ props.row.{field_name} }}}}
             <q-popup-edit v-model="props.row.{field_name}" v-slot="scope"
@@ -243,6 +265,8 @@ def create_api_table(api_url: str, fields: list):
         # Generate default data payload based on column types
         new_data = {}
         for f in fields:
+            if f["name"] == "id":
+                continue
             new_data[f["name"]] = f.get("default", "" if f.get("type") == "text" else 0)
 
         print("Adding new row with data:", new_data)
@@ -251,6 +275,7 @@ def create_api_table(api_url: str, fields: list):
                 res = await client.post(api_url, json=new_data)
                 res.raise_for_status()
                 created_row = res.json()
+                ui.notify(f"Created row: {created_row}")
                 table.rows.append(created_row)
                 ui.notify(
                     f'Added row with ID {created_row.get("id")}', color="positive"
@@ -296,6 +321,9 @@ def create_api_table(api_url: str, fields: list):
     # Bind events
     table.on("rename", rename)
     table.on("delete", delete)
+    for f in fields:
+        if f.get("type") == "action":
+            table.on(f["name"], f["handler"])
 
     # Use a timer to trigger the initial data load right after the UI renders
     ui.timer(0, load_data, once=True)
@@ -355,6 +383,7 @@ class Interval(WorkoutNode): # (Assuming WorkoutNode handles +, *, and -)
         
     def __sub__(self, other):
         return None
+
 
 class Sequence(WorkoutNode):
     """A chain of intervals, e.g., Interval + Interval"""
@@ -731,6 +760,7 @@ def bikes_page():
 
 @ui.page("/training_plans")
 async def training_plans_page():
+    current_plan = None
     page_header_title("Training Plans")
     
     def parse_interval_type(match):
@@ -801,41 +831,86 @@ async def training_plans_page():
             new_options = build_chart_options(workout)
             chart.options.update(new_options)
             chart.update()
-            ui.notify(f"Parsed workout: {flatten_to_data(workout.flatten())}")
         except Exception as e:
             ui.notify(f"Error parsing workout: {e}", color="negative")
     
-    with ui.card().classes("w-full h-100"):
-        workout_str = ui.input(label="Workout String", placeholder="e.g. 3*(12*(30s@380W+30s@100W)+300s@150W)+600s@200W").classes("w-120").on("keydown.enter", lambda e: update_chart())
+    async def save_training_plan():
+        global current_plan
+        if current_plan is None:
+            async with httpx.AsyncClient() as client:
+                res = await client.post("http://api:8000/training_plans", json={
+                    "label": label.value,
+                    "plan": workout_str.value,
+                    "duration_s": flatten_to_data(parse_workout_str(workout_str.value).flatten())[-1][0] if workout_str.value else 0,
+                })
+                res.raise_for_status()
+                current_plan = res.json().get("id")
+                await write_training_plan_to_file()
+                ui.notify("Training plan created!", color="positive")
+                update_chart()
+        else:
+            async with httpx.AsyncClient() as client:
+                res = await client.put(f"http://api:8000/training_plans/{current_plan}", json={
+                    "label": label.value,
+                    "plan": workout_str.value,
+                    "duration_s": flatten_to_data(parse_workout_str(workout_str.value).flatten())[-1][0] if workout_str.value else 0,
+                })
+                res.raise_for_status()
+                await write_training_plan_to_file()
+                ui.notify("Training plan updated!", color="info")
+                update_chart()
+    
+    async def write_training_plan_to_file():
+        global current_plan
+        workout = parse_workout_str(workout_str.value).flatten()
+        with open(f"./training_plans/{current_plan}.stages", "w") as f:
+            f.write(f"stage:0,0,0,0,0,5,0\n")
+            for duration, power_start, power_end, type_id in workout:
+                f.write(f"stage:1,{duration},{power_start},{power_end},{type_id},5,0\n")
+            f.write(f"stage:3,0,0,0,0,5,0\n")
+        ui.notify(f"Training plan written to ./training_plans/{current_plan}.stages")
+    
+    with ui.card().classes("w-full h-100 flex-1"):
+        with ui.row().classes("w-full items-center"):
+            label = ui.input(label="Label")
+            workout_str = ui.input(label="Workout String", placeholder="e.g. 3*(12*(30s@380W+30s@100W)+300s@150W)+600s@200W").classes("w-120").on("keydown.enter", lambda e: update_chart())
+            ui.button("Save", on_click=save_training_plan)
         chart = ui.echart(build_chart_options(Interval(0, 0, 0))).classes("w-full h-80")
 
     async def fetch_training_plans():
         async with httpx.AsyncClient() as client:
             response = await client.get("http://api:8000/training_plans")
             return response.json()
-
-    training_plans_data = await fetch_training_plans()
-    columns = [
-        {"name": "id", "label": "ID", "field": "id", "sortable": True},
-        {"name": "label", "label": "Name", "field": "label", "sortable": True},
-        {"name": "plan", "label": "Plan", "field": "plan", "sortable": True},
+        
+    async def load_training_plan(plan_id):
+        plans = await fetch_training_plans()
+        plan = next((p for p in plans if p["id"] == plan_id), None)
+        label.value = plan["label"]
+        workout_str.value = plan["plan"]
+        global current_plan
+        current_plan = plan_id
+        update_chart()
+    
+    user_fields = [
+        {"name": "id", "label": "ID", "type": "number", "editable": False},
+        {"name": "label", "label": "Label", "type": "text", "default": "New Plan"},
+        {
+            "name": "plan",
+            "label": "Plan",
+            "type": "text",
+            "editable": False,
+        },
         {
             "name": "duration_s",
             "label": "Duration (s)",
-            "field": "duration_s",
-            "sortable": True,
+            "type": "number",
+            "default": 0,
+            "editable": False,
         },
-        {"name": "action", "label": "Action", "align": "center"},
+        {"name": "edit", "label": "", "type": "action", "handler": lambda e: load_training_plan(e.args)},
     ]
-
-    training_plans = ui.table(columns=columns, rows=training_plans_data)
-    with training_plans.add_slot("body-cell-action"):
-        with training_plans.cell("action"):
-            ui.button("Edit", color="primary").props("flat").on(
-                "click",
-                js_handler="() => emit(props.row.id)",
-                handler=lambda e: ui.notify(e.args),
-            )
+    
+    create_api_table(api_url="http://api:8000/training_plans", fields=user_fields)
 
 
 @ui.page("/training_sessions")
