@@ -462,32 +462,34 @@ async def page():
     def build_chart_options(ergo_key: str) -> dict:
         data_distance = list(
             zip(live_data[ergo_key]["time"], live_data[ergo_key]["distance"])
-        )
+            )
         data_crank_rotations = list(
             zip(live_data[ergo_key]["time"], live_data[ergo_key]["crank_rotations"])
-        )
-        data_work = list(zip(live_data[ergo_key]["time"], live_data[ergo_key]["work"]))
+            )
+        data_work = list(
+            zip(live_data[ergo_key]["time"], live_data[ergo_key]["work"])
+            )
         data_cadence = list(
             zip(live_data[ergo_key]["time"], live_data[ergo_key]["cadence"])
-        )
+            )
         data_heart_rate = list(
             zip(live_data[ergo_key]["time"], live_data[ergo_key]["heart_rate"])
-        )
+            )
         data_speed = list(
             zip(live_data[ergo_key]["time"], live_data[ergo_key]["speed"])
-        )
+            )
         data_transmission = list(
             zip(live_data[ergo_key]["time"], live_data[ergo_key]["transmission"])
-        )
+            )
         data_pedal_force = list(
             zip(live_data[ergo_key]["time"], live_data[ergo_key]["pedal_force"])
-        )
+            )
         data_power = list(
             zip(live_data[ergo_key]["time"], live_data[ergo_key]["power"])
-        )
+            )
         data_inclination = list(
             zip(live_data[ergo_key]["time"], live_data[ergo_key]["inclination"])
-        )
+            )
         return {
             "xAxis": {"type": "time"},
             "yAxis": {"type": "value"},
@@ -919,58 +921,51 @@ async def training_sessions_page():
             response = await client.get("http://api:8000/training_sessions")
             return response.json()
 
-    training_sessions_data = await fetch_training_sessions()
-    columns = [
-        {"name": "id", "label": "ID", "field": "id", "sortable": True},
-        {"name": "user_id", "label": "User", "field": "user_id", "sortable": True},
+    
+    user_fields = [
+        {"name": "id", "label": "ID", "type": "number", "editable": False},
+        {"name": "user_id", "label": "User", "type": "number", "editable": False},
         {
             "name": "bicycle_id",
             "label": "Bicycle",
-            "field": "bicycle_id",
-            "sortable": True,
+            "type": "number",
+            "editable": False,
         },
         {
             "name": "training_plan_id",
             "label": "Training Plan",
-            "field": "training_plan_id",
-            "sortable": True,
+            "type": "number",
+            "editable": False,
         },
-        {"name": "date", "label": "Date", "field": "date", "sortable": True},
+        {"name": "date", "label": "Date", "type": "date", "editable": False},
         {
             "name": "duration_s",
             "label": "Duration (s)",
-            "field": "duration_s",
-            "sortable": True,
+            "type": "number",
+            "editable": False,
         },
         {
             "name": "distance_km",
             "label": "Distance (km)",
-            "field": "distance_km",
-            "sortable": True,
+            "type": "number",
+            "editable": False,
         },
         {
             "name": "average_speed_kmh",
             "label": "Average Speed (km/h)",
-            "field": "average_speed_kmh",
-            "sortable": True,
+            "type": "number",
+            "editable": False,
         },
         {
             "name": "average_power_w",
             "label": "Average Power (W)",
-            "field": "average_power_w",
-            "sortable": True,
+            "type": "number",
+            "editable": False,
         },
-        {"name": "action", "label": "Action", "align": "center"},
+        {"name": "view", "label": "", "type": "action", "handler": lambda e: ui.notify(f"Training Session {e.args} clicked!")},
     ]
 
-    training_sessions = ui.table(columns=columns, rows=training_sessions_data)
-    with training_sessions.add_slot("body-cell-action"):
-        with training_sessions.cell("action"):
-            ui.button("View", color="primary").props("flat").on(
-                "click",
-                js_handler="() => emit(props.row.id)",
-                handler=lambda e: ui.notify(e.args),
-            )
+    create_api_table(api_url="http://api:8000/training_sessions", fields=user_fields)
 
 
 ui.run(favicon="🚲")
