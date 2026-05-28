@@ -354,12 +354,15 @@ class WorkoutNode:
     def __rmul__(self, count: int):
         # Overload reverse '*' (e.g., 3 * Interval)
         return Repeat(count, self)
-    
-    def flatten(self): pass
-    def __sub__(self, other): pass
+
+    def flatten(self):
+        pass
+
+    def __sub__(self, other):
+        pass
 
 
-class Interval(WorkoutNode): # (Assuming WorkoutNode handles +, *, and -)
+class Interval(WorkoutNode):  # (Assuming WorkoutNode handles +, *, and -)
     def __init__(self, duration, power_start, power_end, type_id=0):
         self.duration = duration
         self.power_start = power_start
@@ -369,18 +372,18 @@ class Interval(WorkoutNode): # (Assuming WorkoutNode handles +, *, and -)
     def __str__(self):
         # Format the suffix
         suffix = f"_{self.type_id}" if self.type_id != 0 else ""
-        
+
         # If flat load, format normally: 30s@380W
         if self.power_start == self.power_end:
             return f"{self.duration}s@{self.power_start}W{suffix}"
-            
+
         # If ramp/wave, format with hyphen: 60s@100-200W_1
         return f"{self.duration}s@{self.power_start}-{self.power_end}W{suffix}"
 
     def flatten(self):
         # Your unroller now receives a 4-tuple for every interval
         return [(self.duration, self.power_start, self.power_end, self.type_id)]
-        
+
     def __sub__(self, other):
         return None
 
@@ -393,27 +396,30 @@ class Sequence(WorkoutNode):
 
     def __str__(self):
         return "+".join(str(item) for item in self.items)
-    
+
     def flatten(self):
         result = []
         for item in self.items:
             result.extend(item.flatten())
         return result
-    
+
     def __sub__(self, other):
-        if not self.items: return None
+        if not self.items:
+            return None
         new_items = list(self.items)
-        
+
         # Apply the subtraction to the last item in the sequence
         last_subbed = new_items[-1] - other
-        
+
         if last_subbed is None:
-            new_items.pop() # It was fully dropped
+            new_items.pop()  # It was fully dropped
         else:
-            new_items[-1] = last_subbed # It was partially dropped
-            
-        if not new_items: return None
-        if len(new_items) == 1: return new_items[0]
+            new_items[-1] = last_subbed  # It was partially dropped
+
+        if not new_items:
+            return None
+        if len(new_items) == 1:
+            return new_items[0]
         return Sequence(new_items)
 
 
@@ -426,22 +432,22 @@ class Repeat(WorkoutNode):
 
     def __str__(self):
         return f"{self.count}*({self.child})"
-    
+
     def flatten(self):
         result = []
         for _ in range(self.count):
             result.extend(self.child.flatten())
         return result
-    
+
     def __sub__(self, other):
         if self.count <= 1:
             return self.child - other
-            
+
         # e.g., 3*(Work + Rest) - 1
         # Becomes: 2*(Work + Rest) + (Work + Rest - 1)
         remaining_repeat = Repeat(self.count - 1, self.child)
         last_iteration_subbed = self.child - other
-        
+
         return remaining_repeat + last_iteration_subbed
 
 
@@ -458,38 +464,18 @@ async def page():
         return legend_state[ergo_key]
 
     ui.label(str(live_data))
-
+    
     def build_chart_options(ergo_key: str) -> dict:
-        data_distance = list(
-            zip(live_data[ergo_key]["time"], live_data[ergo_key]["distance"])
-            )
-        data_crank_rotations = list(
-            zip(live_data[ergo_key]["time"], live_data[ergo_key]["crank_rotations"])
-            )
-        data_work = list(
-            zip(live_data[ergo_key]["time"], live_data[ergo_key]["work"])
-            )
-        data_cadence = list(
-            zip(live_data[ergo_key]["time"], live_data[ergo_key]["cadence"])
-            )
-        data_heart_rate = list(
-            zip(live_data[ergo_key]["time"], live_data[ergo_key]["heart_rate"])
-            )
-        data_speed = list(
-            zip(live_data[ergo_key]["time"], live_data[ergo_key]["speed"])
-            )
-        data_transmission = list(
-            zip(live_data[ergo_key]["time"], live_data[ergo_key]["transmission"])
-            )
-        data_pedal_force = list(
-            zip(live_data[ergo_key]["time"], live_data[ergo_key]["pedal_force"])
-            )
-        data_power = list(
-            zip(live_data[ergo_key]["time"], live_data[ergo_key]["power"])
-            )
-        data_inclination = list(
-            zip(live_data[ergo_key]["time"], live_data[ergo_key]["inclination"])
-            )
+        data_distance = list(zip(live_data[ergo_key]["time"], live_data[ergo_key]["distance"]))
+        data_crank_rotations = list(zip(live_data[ergo_key]["time"], live_data[ergo_key]["crank_rotations"]))
+        data_work = list(zip(live_data[ergo_key]["time"], live_data[ergo_key]["work"]))
+        data_cadence = list(zip(live_data[ergo_key]["time"], live_data[ergo_key]["cadence"]))
+        data_heart_rate = list(zip(live_data[ergo_key]["time"], live_data[ergo_key]["heart_rate"]))
+        data_speed = list(zip(live_data[ergo_key]["time"], live_data[ergo_key]["speed"]))
+        data_transmission = list(zip(live_data[ergo_key]["time"], live_data[ergo_key]["transmission"]))
+        data_pedal_force = list(zip(live_data[ergo_key]["time"], live_data[ergo_key]["pedal_force"]))
+        data_power = list(zip(live_data[ergo_key]["time"], live_data[ergo_key]["power"]))
+        data_inclination = list(zip(live_data[ergo_key]["time"], live_data[ergo_key]["inclination"]))
         return {
             "xAxis": {"type": "time"},
             "yAxis": {"type": "value"},
@@ -764,50 +750,57 @@ def bikes_page():
 async def training_plans_page():
     current_plan = None
     page_header_title("Training Plans")
-    
+
     def parse_interval_type(match):
         duration = match.group(1)
         power_start = match.group(2)
-        
+
         # Group 3 is the optional end power. If missing, it's a flat interval!
         power_end = match.group(3) if match.group(3) else power_start
-        
+
         # Group 4 is the optional ID
-        type_id = match.group(4) if match.group(4) else '0'
-        
+        type_id = match.group(4) if match.group(4) else "0"
+
         return f"Interval({duration}, {power_start}, {power_end}, {type_id})"
 
     def parse_workout_str(workout_str: str) -> WorkoutNode:
-        if not workout_str:            return Interval(0, 0, 0)  # Default to an empty workout
+        if not workout_str:
+            return Interval(0, 0, 0)  # Default to an empty workout
         allowed_names = {"Interval": Interval, "__builtins__": {}}
         workout_str = workout_str.replace("--", " -1")
-        internal_str = re.sub(r'(\d+)s?@(\d+)(?:-(\d+))?W?(?:_(\d+))?', parse_interval_type, workout_str)
+        internal_str = re.sub(
+            r"(\d+)s?@(\d+)(?:-(\d+))?W?(?:_(\d+))?", parse_interval_type, workout_str
+        )
         return eval(internal_str, allowed_names)
-        
+
     def flatten_to_data(flattened):
-        time=0
+        time = 0
         data = [(0, 0)]
         for duration, start, end, type_id in flattened:
-            if type_id in [0, 1]: # flat/ramp interval
+            if type_id in [0, 1]:  # flat/ramp interval
                 data.append((time, start))
                 time += duration
                 data.append((time, end))
-            if type_id == 2: # half wave interval
+            if type_id == 2:  # half wave interval
                 for i in range(100):
                     t = time + (duration * i / 100)
-                    p = start + (end - start) * (0.5 - 0.5 * math.cos(math.pi * i / 100))
+                    p = start + (end - start) * (
+                        0.5 - 0.5 * math.cos(math.pi * i / 100)
+                    )
                     data.append((t, p))
                 time += duration
                 data.append((time, end))
-            if type_id == 3: # full wave interval
+            if type_id == 3:  # full wave interval
                 for i in range(100):
                     t = time + (duration * i / 100)
-                    p = start + (end - start) * 0.5 * (1 - math.cos(2 * math.pi * i / 100))
+                    p = start + (end - start) * 0.5 * (
+                        1 - math.cos(2 * math.pi * i / 100)
+                    )
                     data.append((t, p))
                 time += duration
                 data.append((time, start))
         return data
-    
+
     def build_chart_options(workout: WorkoutNode) -> dict:
         data = flatten_to_data(workout.flatten())
         return {
@@ -822,8 +815,8 @@ async def training_plans_page():
                     "data": data,
                 },
             ],
-        } 
-            
+        }
+
     def update_chart():
         try:
             workout = parse_workout_str(workout_str.value)
@@ -832,16 +825,25 @@ async def training_plans_page():
             chart.update()
         except Exception as e:
             ui.notify(f"Error parsing workout: {e}", color="negative")
-    
+
     async def save_training_plan():
         global current_plan
         if current_plan is None:
             async with httpx.AsyncClient() as client:
-                res = await client.post("http://api:8000/training_plans", json={
-                    "label": label.value,
-                    "plan": workout_str.value,
-                    "duration_s": flatten_to_data(parse_workout_str(workout_str.value).flatten())[-1][0] if workout_str.value else 0,
-                })
+                res = await client.post(
+                    "http://api:8000/training_plans",
+                    json={
+                        "label": label.value,
+                        "plan": workout_str.value,
+                        "duration_s": (
+                            flatten_to_data(
+                                parse_workout_str(workout_str.value).flatten()
+                            )[-1][0]
+                            if workout_str.value
+                            else 0
+                        ),
+                    },
+                )
                 res.raise_for_status()
                 current_plan = res.json().get("id")
                 await write_training_plan_to_file()
@@ -849,16 +851,25 @@ async def training_plans_page():
                 update_chart()
         else:
             async with httpx.AsyncClient() as client:
-                res = await client.put(f"http://api:8000/training_plans/{current_plan}", json={
-                    "label": label.value,
-                    "plan": workout_str.value,
-                    "duration_s": flatten_to_data(parse_workout_str(workout_str.value).flatten())[-1][0] if workout_str.value else 0,
-                })
+                res = await client.put(
+                    f"http://api:8000/training_plans/{current_plan}",
+                    json={
+                        "label": label.value,
+                        "plan": workout_str.value,
+                        "duration_s": (
+                            flatten_to_data(
+                                parse_workout_str(workout_str.value).flatten()
+                            )[-1][0]
+                            if workout_str.value
+                            else 0
+                        ),
+                    },
+                )
                 res.raise_for_status()
                 await write_training_plan_to_file()
                 ui.notify("Training plan updated!", color="info")
                 update_chart()
-    
+
     async def write_training_plan_to_file():
         global current_plan
         workout = parse_workout_str(workout_str.value).flatten()
@@ -868,11 +879,18 @@ async def training_plans_page():
                 f.write(f"stage:1,{duration},{power_start},{power_end},{type_id},5,0\n")
             f.write(f"stage:3,0,0,0,0,5,0\n")
         ui.notify(f"Training plan written to ./training_plans/{current_plan}.stages")
-    
+
     with ui.card().classes("w-full h-100 flex-1"):
         with ui.row().classes("w-full items-center"):
             label = ui.input(label="Label")
-            workout_str = ui.input(label="Workout String", placeholder="e.g. 3*(12*(30s@380W+30s@100W)+300s@150W)+600s@200W").classes("w-120").on("keydown.enter", lambda e: update_chart())
+            workout_str = (
+                ui.input(
+                    label="Workout String",
+                    placeholder="e.g. 3*(12*(30s@380W+30s@100W)+300s@150W)+600s@200W",
+                )
+                .classes("w-120")
+                .on("keydown.enter", lambda e: update_chart())
+            )
             ui.button("Save", on_click=save_training_plan)
         chart = ui.echart(build_chart_options(Interval(0, 0, 0))).classes("w-full h-80")
 
@@ -880,7 +898,7 @@ async def training_plans_page():
         async with httpx.AsyncClient() as client:
             response = await client.get("http://api:8000/training_plans")
             return response.json()
-        
+
     async def load_training_plan(plan_id):
         plans = await fetch_training_plans()
         plan = next((p for p in plans if p["id"] == plan_id), None)
@@ -889,7 +907,7 @@ async def training_plans_page():
         global current_plan
         current_plan = plan_id
         update_chart()
-    
+
     user_fields = [
         {"name": "id", "label": "ID", "type": "number", "editable": False},
         {"name": "label", "label": "Label", "type": "text", "default": "New Plan"},
@@ -906,9 +924,14 @@ async def training_plans_page():
             "default": 0,
             "editable": False,
         },
-        {"name": "edit", "label": "", "type": "action", "handler": lambda e: load_training_plan(e.args)},
+        {
+            "name": "edit",
+            "label": "",
+            "type": "action",
+            "handler": lambda e: load_training_plan(e.args),
+        },
     ]
-    
+
     create_api_table(api_url="http://api:8000/training_plans", fields=user_fields)
 
 
@@ -920,31 +943,59 @@ async def training_sessions_page():
         async with httpx.AsyncClient() as client:
             response = await client.get("http://api:8000/training_sessions")
             return response.json()
-        
+
     async def read_training_session_from_file(session_id):
-        data = []
+        data = {
+            "time": [],
+            "distance": [],
+            "crank_rotations": [],
+            "work": [],
+            "cadence": [],
+            "heart_rate": [],
+            "speed": [],
+            "transmission": [],
+            "pedal_force": [],
+            "power": [],
+            "inclination": [],
+            "work_per_heartbeat": [],
+            "virtual_chainring": [],
+            "virtual_sprocket": [],
+        }
         with open(f"./training_sessions/{session_id}.data", "r") as f:
             for line in f:
-                values = line[5:].strip().split(",")
-                time, distance, crank_rotations, work, cadence, heart_rate, speed, transmission, pedal_force, power, inclination, work_per_heartbeat, virtual_chainring, virtual_sprocket = values
-                data.append({
-                    "time": int(time),
-                    "distance": float(distance),
-                    "crank_rotations": float(crank_rotations),
-                    "work": float(work),
-                    "cadence": float(cadence),
-                    "heart_rate": float(heart_rate),
-                    "speed": float(speed),
-                    "transmission": float(transmission),
-                    "pedal_force": float(pedal_force),
-                    "power": float(power),
-                    "inclination": float(inclination),
-                    "work_per_heatbeat": float(work_per_heartbeat),
-                    "virtual_chainring": int(virtual_chainring),
-                    "virtual_sprocket": int(virtual_sprocket),
-                })
+                values = line[7:].strip().split(",")
+                (
+                    time,
+                    distance,
+                    crank_rotations,
+                    work,
+                    cadence,
+                    heart_rate,
+                    speed,
+                    transmission,
+                    pedal_force,
+                    power,
+                    inclination,
+                    work_per_heartbeat,
+                    virtual_chainring,
+                    virtual_sprocket,
+                ) = values
+                data["time"].append(int(time))
+                data["distance"].append(float(distance))
+                data["crank_rotations"].append(float(crank_rotations))
+                data["work"].append(float(work))
+                data["cadence"].append(float(cadence))
+                data["heart_rate"].append(float(heart_rate))
+                data["speed"].append(float(speed))
+                data["transmission"].append(float(transmission))
+                data["pedal_force"].append(float(pedal_force))
+                data["power"].append(float(power))
+                data["inclination"].append(float(inclination))
+                data["work_per_heartbeat"].append(float(work_per_heartbeat))
+                data["virtual_chainring"].append(int(virtual_chainring))
+                data["virtual_sprocket"].append(int(virtual_sprocket))
         return data
-    
+
     legend_state = {
         "Distance": False,
         "Crank Rotations": False,
@@ -957,39 +1008,38 @@ async def training_sessions_page():
         "Power": True,
         "Inclination": False,
     }
-    
-    def build_chart_options(session_id: int) -> dict:
-        data = read_training_session_from_file(session_id) if session_id else []     
-        data_distance = list(
-            zip(data["time"], data["distance"])
-            ) if session_id else []
-        data_crank_rotations = list(
-            zip(data["time"], data["crank_rotations"])
-            ) if session_id else []
-        data_work = list(
-            zip(data["time"], data["work"])
-            ) if session_id else []
-        data_cadence = list(
-            zip(data["time"], data["cadence"])
-            ) if session_id else []
-        data_heart_rate = list(
-            zip(data["time"], data["heart_rate"])
-            ) if session_id else []
-        data_speed = list(
-            zip(data["time"], data["speed"])
-            ) if session_id else []
-        data_transmission = list(
-            zip(data["time"], data["transmission"])
-            ) if session_id else []
-        data_pedal_force = list(
-            zip(data["time"], data["pedal_force"])
-            ) if session_id else []
-        data_power = list(
-            zip(data["time"], data["power"])
-            ) if session_id else []
-        data_inclination = list(
-            zip(data["time"], data["inclination"])
-            ) if session_id else []
+
+    async def build_chart_options(session_id: int) -> dict:
+        data = (
+            await read_training_session_from_file(session_id)
+            if session_id
+            else {
+                "time": [],
+                "distance": [],
+                "crank_rotations": [],
+                "work": [],
+                "cadence": [],
+                "heart_rate": [],
+                "speed": [],
+                "transmission": [],
+                "pedal_force": [],
+                "power": [],
+                "inclination": [],
+                "work_per_heartbeat": [],
+                "virtual_chainring": [],
+                "virtual_sprocket": [],
+            }
+        )
+        data_distance = list(zip(data["time"], data["distance"]))
+        data_crank_rotations = list(zip(data["time"], data["crank_rotations"]))
+        data_work = list(zip(data["time"], data["work"]))
+        data_cadence = list(zip(data["time"], data["cadence"]))
+        data_heart_rate = list(zip(data["time"], data["heart_rate"]))
+        data_speed = list(zip(data["time"], data["speed"]))
+        data_transmission = list(zip(data["time"], data["transmission"]))
+        data_pedal_force = list(zip(data["time"], data["pedal_force"]))
+        data_power = list(zip(data["time"], data["power"]))
+        data_inclination = list(zip(data["time"], data["inclination"]))
         return {
             "xAxis": {"type": "time"},
             "yAxis": {"type": "value"},
@@ -1070,32 +1120,30 @@ async def training_sessions_page():
                 },
             ],
         }
-    
-    echart = ui.echart(build_chart_options(session_id=None))
 
-    def on_legend_select_changed(
-                    e: events.GenericEventArguments, ergo_key=key
-                ) -> None:
-                    if not isinstance(e.args, dict):
-                        return
+    with ui.card().classes("w-full h-100 flex-1"):
+        echart = ui.echart(await build_chart_options(session_id=None))
 
-                    selected = e.args.get("selected")
-                    if not isinstance(selected, dict):
-                        return
+    async def view_session(session_id: int) -> None:
+        ui.notify(f"Loading session {session_id}...")
+        new_options = await build_chart_options(session_id)
+        echart.options.update(new_options)
+        echart.update()
 
-                    current = legend_state
-                    current.update(
-                        {
-                            str(name): bool(is_visible)
-                            for name, is_visible in selected.items()
-                        }
-                    )
-                    print(
-                        f"[legend] {ergo_key} updated selection: {json.dumps(current, sort_keys=True)}"
-                    )
+    def on_legend_select_changed(e: events.GenericEventArguments) -> None:
+
+        selected = e.args.get("selected")
+        if not isinstance(selected, dict):
+            return
+
+        current = legend_state
+        current.update(
+            {str(name): bool(is_visible) for name, is_visible in selected.items()}
+        )
+        print(f"[legend] updated selection: {json.dumps(current, sort_keys=True)}")
 
     echart.on("chart:legendselectchanged", on_legend_select_changed)
-                
+
     user_fields = [
         {"name": "id", "label": "ID", "type": "number", "editable": False},
         {"name": "user_id", "label": "User", "type": "number", "editable": False},
@@ -1136,7 +1184,12 @@ async def training_sessions_page():
             "type": "number",
             "editable": False,
         },
-        {"name": "view", "label": "", "type": "action", "handler": lambda e: ui.notify(f"Training Session {e.args} clicked!")},
+        {
+            "name": "view",
+            "label": "",
+            "type": "action",
+            "handler": lambda e: view_session(e.args),
+        },
     ]
 
     create_api_table(api_url="http://api:8000/training_sessions", fields=user_fields)
