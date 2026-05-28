@@ -1,5 +1,6 @@
 pgdata/
 training_plans/
+training_sessions/
 
 test.py
 
