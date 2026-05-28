@@ -23,8 +23,8 @@ CREATE TABLE bicycles (
 CREATE TABLE training_plans (
     "id" serial PRIMARY KEY,
     "label" character varying(64) NOT NULL,
-    "duration_s" int NOT NULL,
-    "file_path" character varying(256) NOT NULL
+    "plan" character varying(2048) NOT NULL,
+    "duration_s" int NOT NULL
 );
 
 CREATE TABLE training_sessions (
@@ -36,6 +36,5 @@ CREATE TABLE training_sessions (
     "duration_s" int NOT NULL,
     "distance_km" real NOT NULL,
     "average_speed_kmh" real NOT NULL,
-    "average_power_w" real NOT NULL,
-    "file_path" character varying(256) NOT NULL
+    "average_power_w" real NOT NULL
 );
