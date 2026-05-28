@@ -780,7 +780,6 @@ async def training_plans_page():
         allowed_names = {"Interval": Interval, "__builtins__": {}}
         workout_str = workout_str.replace("--", " -1")
         internal_str = re.sub(r'(\d+)s?@(\d+)(?:-(\d+))?W?(?:_(\d+))?', parse_interval_type, workout_str)
-        print(f"{workout_str} -> {internal_str}")
         return eval(internal_str, allowed_names)
         
     def flatten_to_data(flattened):
@@ -805,8 +804,6 @@ async def training_plans_page():
                     data.append((t, p))
                 time += duration
                 data.append((time, start))
-        print(f"Flattened workout: {flattened}")
-        print(f"Flattened workout data: {data}")
         return data
     
     def build_chart_options(workout: WorkoutNode) -> dict:
