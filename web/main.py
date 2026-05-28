@@ -4,6 +4,8 @@ import json
 from nicegui import events, app, ui
 import httpx
 import redis.asyncio as redis
+import re
+import math
 
 # --- Global State ---
 # This holds the live telemetry data for all ergometers
@@ -308,6 +310,112 @@ async def sent_command(api_url: str, command: str | None = None):
         return res.json()
 
 
+class WorkoutNode:
+    """Base class for all workout components."""
+
+    def __add__(self, other):
+        # Overload the '+' operator to combine intervals
+        if isinstance(self, Sequence):
+            return Sequence(self.items + [other])
+        return Sequence([self, other])
+
+    def __mul__(self, count: int):
+        # Overload the '*' operator (e.g., Interval * 3)
+        return Repeat(count, self)
+
+    def __rmul__(self, count: int):
+        # Overload reverse '*' (e.g., 3 * Interval)
+        return Repeat(count, self)
+    
+    def flatten(self): pass
+    def __sub__(self, other): pass
+
+
+class Interval(WorkoutNode): # (Assuming WorkoutNode handles +, *, and -)
+    def __init__(self, duration, power_start, power_end, type_id=0):
+        self.duration = duration
+        self.power_start = power_start
+        self.power_end = power_end
+        self.type_id = int(type_id)
+
+    def __str__(self):
+        # Format the suffix
+        suffix = f"_{self.type_id}" if self.type_id != 0 else ""
+        
+        # If flat load, format normally: 30s@380W
+        if self.power_start == self.power_end:
+            return f"{self.duration}s@{self.power_start}W{suffix}"
+            
+        # If ramp/wave, format with hyphen: 60s@100-200W_1
+        return f"{self.duration}s@{self.power_start}-{self.power_end}W{suffix}"
+
+    def flatten(self):
+        # Your unroller now receives a 4-tuple for every interval
+        return [(self.duration, self.power_start, self.power_end, self.type_id)]
+        
+    def __sub__(self, other):
+        return None
+
+class Sequence(WorkoutNode):
+    """A chain of intervals, e.g., Interval + Interval"""
+
+    def __init__(self, items: list):
+        self.items = items
+
+    def __str__(self):
+        return "+".join(str(item) for item in self.items)
+    
+    def flatten(self):
+        result = []
+        for item in self.items:
+            result.extend(item.flatten())
+        return result
+    
+    def __sub__(self, other):
+        if not self.items: return None
+        new_items = list(self.items)
+        
+        # Apply the subtraction to the last item in the sequence
+        last_subbed = new_items[-1] - other
+        
+        if last_subbed is None:
+            new_items.pop() # It was fully dropped
+        else:
+            new_items[-1] = last_subbed # It was partially dropped
+            
+        if not new_items: return None
+        if len(new_items) == 1: return new_items[0]
+        return Sequence(new_items)
+
+
+class Repeat(WorkoutNode):
+    """A repeated block, e.g., 3 * (Interval + Interval)"""
+
+    def __init__(self, count: int, child: WorkoutNode):
+        self.count = count
+        self.child = child
+
+    def __str__(self):
+        return f"{self.count}*({self.child})"
+    
+    def flatten(self):
+        result = []
+        for _ in range(self.count):
+            result.extend(self.child.flatten())
+        return result
+    
+    def __sub__(self, other):
+        if self.count <= 1:
+            return self.child - other
+            
+        # e.g., 3*(Work + Rest) - 1
+        # Becomes: 2*(Work + Rest) + (Work + Rest - 1)
+        remaining_repeat = Repeat(self.count - 1, self.child)
+        last_iteration_subbed = self.child - other
+        
+        return remaining_repeat + last_iteration_subbed
+
+
 @ui.page("/")
 async def page():
     page_header_title("Cyclus Manager")
@@ -329,9 +437,7 @@ async def page():
         data_crank_rotations = list(
             zip(live_data[ergo_key]["time"], live_data[ergo_key]["crank_rotations"])
         )
-        data_work = list(
-            zip(live_data[ergo_key]["time"], live_data[ergo_key]["work"])
-        )
+        data_work = list(zip(live_data[ergo_key]["time"], live_data[ergo_key]["work"]))
         data_cadence = list(
             zip(live_data[ergo_key]["time"], live_data[ergo_key]["cadence"])
         )
@@ -378,7 +484,7 @@ async def page():
                 {
                     "type": "line",
                     "name": "Work",
-                    "symbol": "diamond",                   
+                    "symbol": "diamond",
                     "showSymbol": False,
                     "data": data_work,
                 },
@@ -626,6 +732,82 @@ def bikes_page():
 @ui.page("/training_plans")
 async def training_plans_page():
     page_header_title("Training Plans")
+    
+    def parse_interval_type(match):
+        duration = match.group(1)
+        power_start = match.group(2)
+        
+        # Group 3 is the optional end power. If missing, it's a flat interval!
+        power_end = match.group(3) if match.group(3) else power_start
+        
+        # Group 4 is the optional ID
+        type_id = match.group(4) if match.group(4) else '0'
+        
+        return f"Interval({duration}, {power_start}, {power_end}, {type_id})"
+
+    def parse_workout_str(workout_str: str) -> WorkoutNode:
+        if not workout_str:            return Interval(0, 0, 0)  # Default to an empty workout
+        allowed_names = {"Interval": Interval, "__builtins__": {}}
+        workout_str = workout_str.replace("--", " -1")
+        internal_str = re.sub(r'(\d+)s?@(\d+)(?:-(\d+))?W?(?:_(\d+))?', parse_interval_type, workout_str)
+        print(f"{workout_str} -> {internal_str}")
+        return eval(internal_str, allowed_names)
+        
+    def flatten_to_data(flattened):
+        time=0
+        data = [(0, 0)]
+        for duration, start, end, type_id in flattened:
+            if type_id in [0, 1]: # flat/ramp interval
+                data.append((time, start))
+                time += duration
+                data.append((time, end))
+            if type_id == 2: # half wave interval
+                for i in range(100):
+                    t = time + (duration * i / 100)
+                    p = start + (end - start) * (0.5 - 0.5 * math.cos(math.pi * i / 100))
+                    data.append((t, p))
+                time += duration
+                data.append((time, end))
+            if type_id == 3: # full wave interval
+                for i in range(100):
+                    t = time + (duration * i / 100)
+                    p = start + (end - start) * 0.5 * (1 - math.cos(2 * math.pi * i / 100))
+                    data.append((t, p))
+                time += duration
+                data.append((time, start))
+        print(f"Flattened workout: {flattened}")
+        print(f"Flattened workout data: {data}")
+        return data
+    
+    def build_chart_options(workout: WorkoutNode) -> dict:
+        data = flatten_to_data(workout.flatten())
+        return {
+            "xAxis": {"type": "time"},
+            "yAxis": {"type": "value"},
+            "series": [
+                {
+                    "type": "line",
+                    "name": "Power",
+                    "symbol": "diamond",
+                    "showSymbol": False,
+                    "data": data,
+                },
+            ],
+        } 
+            
+    def update_chart():
+        try:
+            workout = parse_workout_str(workout_str.value)
+            new_options = build_chart_options(workout)
+            chart.options.update(new_options)
+            chart.update()
+            ui.notify(f"Parsed workout: {flatten_to_data(workout.flatten())}")
+        except Exception as e:
+            ui.notify(f"Error parsing workout: {e}", color="negative")
+    
+    with ui.card().classes("w-full h-100"):
+        workout_str = ui.input(label="Workout String", placeholder="e.g. 3*(12*(30s@380W+30s@100W)+300s@150W)+600s@200W").classes("w-120").on("keydown.enter", lambda e: update_chart())
+        chart = ui.echart(build_chart_options(Interval(0, 0, 0))).classes("w-full h-80")
 
     async def fetch_training_plans():
         async with httpx.AsyncClient() as client:
@@ -636,16 +818,24 @@ async def training_plans_page():
     columns = [
         {"name": "id", "label": "ID", "field": "id", "sortable": True},
         {"name": "label", "label": "Name", "field": "label", "sortable": True},
+        {"name": "plan", "label": "Plan", "field": "plan", "sortable": True},
         {
             "name": "duration_s",
             "label": "Duration (s)",
             "field": "duration_s",
             "sortable": True,
         },
-        {"name": "file_path", "label": "File Path", "field": "file_path"},
+        {"name": "action", "label": "Action", "align": "center"},
     ]
 
     training_plans = ui.table(columns=columns, rows=training_plans_data)
+    with training_plans.add_slot("body-cell-action"):
+        with training_plans.cell("action"):
+            ui.button("Edit", color="primary").props("flat").on(
+                "click",
+                js_handler="() => emit(props.row.id)",
+                handler=lambda e: ui.notify(e.args),
+            )
 
 
 @ui.page("/training_sessions")
@@ -698,7 +888,6 @@ async def training_sessions_page():
             "field": "average_power_w",
             "sortable": True,
         },
-        {"name": "file_path", "label": "File Path", "field": "file_path"},
         {"name": "action", "label": "Action", "align": "center"},
     ]
 
