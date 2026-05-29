@@ -6,6 +6,7 @@ import httpx
 import redis.asyncio as redis
 import re
 import math
+import time
 
 # --- Global State ---
 # This holds the live telemetry data for all ergometers
@@ -29,7 +30,7 @@ for key in json.loads(os.getenv("ERGOMETERS_CONFIG", "{}")).keys():
         "virtual_sprocket": [],
     }
     data_version[key] = 0
-
+start_time = math.floor(time.time() * 1000.0)
 
 # --- Background Task: Listen to Redis ---
 async def redis_listener():
@@ -470,16 +471,16 @@ async def page():
         return legend_state[ergo_key]
     
     def build_chart_options(ergo_key: str) -> dict:
-        data_distance = list(zip(live_data[ergo_key]["time"], live_data[ergo_key]["distance"]))
-        data_crank_rotations = list(zip(live_data[ergo_key]["time"], live_data[ergo_key]["crank_rotations"]))
-        data_work = list(zip(live_data[ergo_key]["time"], live_data[ergo_key]["work"]))
-        data_cadence = list(zip(live_data[ergo_key]["time"], live_data[ergo_key]["cadence"]))
-        data_heart_rate = list(zip(live_data[ergo_key]["time"], live_data[ergo_key]["heart_rate"]))
-        data_speed = list(zip(live_data[ergo_key]["time"], live_data[ergo_key]["speed"]))
-        data_transmission = list(zip(live_data[ergo_key]["time"], live_data[ergo_key]["transmission"]))
-        data_pedal_force = list(zip(live_data[ergo_key]["time"], live_data[ergo_key]["pedal_force"]))
-        data_power = list(zip(live_data[ergo_key]["time"], live_data[ergo_key]["power"]))
-        data_inclination = list(zip(live_data[ergo_key]["time"], live_data[ergo_key]["inclination"]))
+        data_distance = list(zip([t*10 + start_time for t in live_data[ergo_key]["time"]], live_data[ergo_key]["distance"]))
+        data_crank_rotations = list(zip([t*10 + start_time for t in live_data[ergo_key]["time"]], live_data[ergo_key]["crank_rotations"]))
+        data_work = list(zip([t*10 + start_time for t in live_data[ergo_key]["time"]], live_data[ergo_key]["work"]))
+        data_cadence = list(zip([t*10 + start_time for t in live_data[ergo_key]["time"]], live_data[ergo_key]["cadence"]))
+        data_heart_rate = list(zip([t*10 + start_time for t in live_data[ergo_key]["time"]], live_data[ergo_key]["heart_rate"]))
+        data_speed = list(zip([t*10 + start_time for t in live_data[ergo_key]["time"]], live_data[ergo_key]["speed"]))
+        data_transmission = list(zip([t*10 + start_time for t in live_data[ergo_key]["time"]], live_data[ergo_key]["transmission"]))
+        data_pedal_force = list(zip([t*10 + start_time for t in live_data[ergo_key]["time"]], live_data[ergo_key]["pedal_force"]))
+        data_power = list(zip([t*10 + start_time for t in live_data[ergo_key]["time"]], live_data[ergo_key]["power"]))
+        data_inclination = list(zip([t*10 + start_time for t in live_data[ergo_key]["time"]], live_data[ergo_key]["inclination"]))
         return {
             "legend": {
                 "bottom": 0,
@@ -641,6 +642,10 @@ async def page():
                         
                     async def start_ergometry(k=key):
                         result = await sent_command(
+                            f"http://api:8000/api/ergometers/{k}/time"
+                        )
+                        ui.notify(str(result))
+                        result = await sent_command(
                             f"http://api:8000/api/ergometers/{k}/command", command="ctrl=1"
                         )
                         ui.notify(str(result))
@@ -665,6 +670,8 @@ async def page():
                             "virtual_chainring": [],
                             "virtual_sprocket": [],
                         }
+                        global start_time
+                        start_time = math.floor(time.time() * 1000.0)
                         
                     async def stop_ergometry(k=key):
                         result = await sent_command(

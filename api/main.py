@@ -50,8 +50,8 @@ async def send_ergometer_command(label: str, req: CommandRequest):
                 if data.get('req_id') == req_id:
                     return data
     try:
-        # Timeout after 3.5 seconds
-        result = await asyncio.wait_for(wait_for_response(), timeout=3.5)
+        # Timeout after 5.5 seconds
+        result = await asyncio.wait_for(wait_for_response(), timeout=5.5)
         await pubsub.unsubscribe()
         
         if "error" in result:
@@ -105,8 +105,8 @@ async def load_training_plan(label: str, req: LoadPlanRequest):
                 if data.get('req_id') == req_id:
                     return data
     try:
-        # Timeout after 3.5 seconds
-        result = await asyncio.wait_for(wait_for_response(), timeout=3.5)
+        # Timeout after 5.5 seconds
+        result = await asyncio.wait_for(wait_for_response(), timeout=5.5)
         await pubsub.unsubscribe()
         
         if "error" in result:

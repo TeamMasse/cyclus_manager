@@ -51,7 +51,7 @@ class ErgometerDevice:
 
         return b"".join(chunks).decode("utf-8", errors="replace")
 
-    async def _send_line_locked(self, line, timeout_s=3.0):
+    async def _send_line_locked(self, line, timeout_s=5.0):
         if not self.writer:
             #print(f"[{self.label}] _send_line_locked: not connected, line={line!r}")
             return {"error": "Not connected"}
@@ -109,7 +109,7 @@ class ErgometerDevice:
                         self._pending_response = decoded
                         #print(f"[{self.label}] RX stored as pending response: {decoded!r}")
                         self._response_event.set()
-                        print(f"[{self.label}] response event set")
+                        #print(f"[{self.label}] response event set")
                     else:
                         print(f"[{self.label}] RX ignored (non-telemetry, idle or already handled): {decoded!r}")
 
@@ -173,10 +173,10 @@ class ErgometerDevice:
         async with self.lock:
             # Queries ending with '?' should return whatever the device replies (not an ok/error ack)
             if isinstance(command, str) and command.strip().endswith('?'):
-                print(f"[{self.label}] execute_command: query path")
+                #print(f"[{self.label}] execute_command: query path")
                 result = await self._send_and_receive(command)
             else:
-                print(f"[{self.label}] execute_command: ack-gated path")
+                #print(f"[{self.label}] execute_command: ack-gated path")
                 # Otherwise use ack-gated send
                 result = await self._send_line_locked(command)
 
@@ -187,7 +187,7 @@ class ErgometerDevice:
             print(f"[{self.label}] execute_command: result={result}")
             return result
 
-    async def _send_and_receive(self, line, timeout_s=3.0):
+    async def _send_and_receive(self, line, timeout_s=5.0):
         """Send a line and wait for the first response line (used for queries ending with '?')."""
         if not self.writer:
             print(f"[{self.label}] _send_and_receive: not connected, line={line!r}")
