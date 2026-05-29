@@ -25,6 +25,9 @@ app = FastAPI(lifespan=lifespan)
 
 class CommandRequest(BaseModel):
     command: str
+    
+class LoadPlanRequest(BaseModel):
+    plan_id: int
 
 @app.post("/api/ergometers/{label}/command")
 async def send_ergometer_command(label: str, req: CommandRequest):
@@ -80,6 +83,40 @@ async def setup_cyclus(label: str, user_id: int, bicycle_id: int):
             #print(f"Fetched bicycle: {bicycle}") #Fetched bicycle: (1, 'FES', 0.68, 0.17, 6.8, 57, 12)
             
     return {"id": label, "user_response": response1, "bicycle_response": response2}
+
+@app.post("/api/ergometers/{label}/load_plan")
+async def load_training_plan(label: str, req: LoadPlanRequest):
+    req_id = str(uuid.uuid4()) # Create a unique ID for this HTTP request
+    
+    # 1. Subscribe to the response channel BEFORE sending the command
+    pubsub = redis_client.pubsub()
+    await pubsub.subscribe(f"ergo/responses/{label}")
+    
+    # 2. Publish the command to the Device Manager
+    payload = {"label": label, "plan_id": req.plan_id, "req_id": req_id}
+    await redis_client.publish("ergo/load_plan", json.dumps(payload))
+    
+    # 3. Wait for the specific response to come back
+    async def wait_for_response():
+        async for message in pubsub.listen():
+            if message['type'] == 'message':
+                data = json.loads(message['data'])
+                # Ensure this response belongs to THIS http request
+                if data.get('req_id') == req_id:
+                    return data
+    try:
+        # Timeout after 3.5 seconds
+        result = await asyncio.wait_for(wait_for_response(), timeout=3.5)
+        await pubsub.unsubscribe()
+        
+        if "error" in result:
+            raise HTTPException(status_code=500, detail=result["error"])
+            
+        return {"status": "success", "response": result.get("response")}
+        
+    except asyncio.TimeoutError:
+        await pubsub.unsubscribe()
+        raise HTTPException(status_code=504, detail="Timeout waiting for Device Manager")
 
 @app.get("/health")
 def health():

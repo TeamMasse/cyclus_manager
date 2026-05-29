@@ -336,6 +336,12 @@ async def sent_command(api_url: str, command: str | None = None):
         res = await client.post(str(api_url), json={"command": command})
         res.raise_for_status()
         return res.json()
+    
+async def sent_load_plan_command(api_url: str, plan_id: int):
+    async with httpx.AsyncClient() as client:
+        res = await client.post(str(api_url), json={"plan_id": plan_id})
+        res.raise_for_status()
+        return res.json()
 
 
 class WorkoutNode:
@@ -462,8 +468,6 @@ async def page():
         if ergo_key not in legend_state:
             legend_state[ergo_key] = dict(DEFAULT_LEGEND_SELECTED)
         return legend_state[ergo_key]
-
-    ui.label(str(live_data))
     
     def build_chart_options(ergo_key: str) -> dict:
         data_distance = list(zip(live_data[ergo_key]["time"], live_data[ergo_key]["distance"]))
@@ -477,6 +481,16 @@ async def page():
         data_power = list(zip(live_data[ergo_key]["time"], live_data[ergo_key]["power"]))
         data_inclination = list(zip(live_data[ergo_key]["time"], live_data[ergo_key]["inclination"]))
         return {
+            "legend": {
+                "bottom": 0,
+                "left": 'center'
+            },
+            "grid": {
+                "left": 10,
+                "right": 10,
+                "top": 10,
+                "containLabel": True,
+            },
             "xAxis": {"type": "time"},
             "yAxis": {"type": "value"},
             "legend": {
@@ -574,6 +588,13 @@ async def page():
                 athlete_options[athlete["id"]] = (
                     f"{athlete['first_name']} {athlete['last_name']}"
                 )
+        
+        async with httpx.AsyncClient() as client:
+            res = await client.get(str("http://api:8000/training_plans"))
+            res.raise_for_status()
+            training_plan_options = {}
+            for plan in res.json():
+                training_plan_options[plan["id"]] = f"{plan['label']}"
 
         for key, _ in ERGOMETERS_CONFIG.items():
             with ui.card().classes("flex-1"):
@@ -590,18 +611,10 @@ async def page():
                     ui.button("Set time", on_click=set_time)
 
                 with ui.row().classes("w-full items-center"):
+                    athlete_select = ui.select(athlete_options, label="Athlete", value=1).classes("w-50")
+                    bicycle_select = ui.select(bicycle_options, label="Bike", value=1).classes("w-50")
 
-                    athlete_select = ui.select(
-                        athlete_options, label="Athlete", value=1
-                    )
-
-                    bicycle_select = ui.select(bicycle_options, label="Bike", value=1)
-
-                    async def setup(
-                        k=key,
-                        athlete_select=athlete_select,
-                        bicycle_select=bicycle_select,
-                    ):
+                    async def setup(k=key, athlete_select=athlete_select, bicycle_select=bicycle_select,):
                         result = await sent_command(
                             f"http://api:8000/api/ergometers/{k}/setup?user_id={athlete_select.value}&bicycle_id={bicycle_select.value}"
                         )
@@ -609,6 +622,53 @@ async def page():
 
                     ui.space()
                     ui.button("Set up", on_click=setup)
+
+                with ui.row().classes("w-full items-center"):
+                    training_plan_select = ui.select(training_plan_options, label="Training Plan", value=1).classes("w-50")
+                    
+                    async def load_training_plan(k=key, training_plan_select=training_plan_select):
+                        result = await sent_load_plan_command(
+                            f"http://api:8000/api/ergometers/{k}/load_plan", plan_id=str(training_plan_select.value)
+                        )
+                        ui.notify(str(result))
+                        
+                    async def start_ergometry(k=key):
+                        result = await sent_command(
+                            f"http://api:8000/api/ergometers/{k}/command", command="ctrl=1"
+                        )
+                        ui.notify(str(result))
+                        result = await sent_command(
+                            f"http://api:8000/api/ergometers/{k}/command", command="save=2"
+                        )
+                        ui.notify(str(result))
+                        global live_data
+                        live_data[key] = {
+                            "time": [],
+                            "distance": [],
+                            "crank_rotations": [],
+                            "work": [],
+                            "cadence": [],
+                            "heart_rate": [],
+                            "speed": [],
+                            "transmission": [],
+                            "pedal_force": [],
+                            "power": [],
+                            "inclination": [],
+                            "work_per_heatbeat": [],
+                            "virtual_chainring": [],
+                            "virtual_sprocket": [],
+                        }
+                        
+                    async def stop_ergometry(k=key):
+                        result = await sent_command(
+                            f"http://api:8000/api/ergometers/{k}/command", command="ctrl=0"
+                        )
+                        ui.notify(str(result))
+                        
+                    ui.space()
+                    ui.button("Load Plan", on_click=load_training_plan)
+                    ui.button("Start", on_click=start_ergometry)
+                    ui.button("Stop", on_click=stop_ergometry)
 
                 echart = ui.echart(build_chart_options(key))
 
@@ -804,6 +864,16 @@ async def training_plans_page():
     def build_chart_options(workout: WorkoutNode) -> dict:
         data = flatten_to_data(workout.flatten())
         return {
+            "legend": {
+                "show": False,
+            },
+            "grid": {
+                "left": 10,
+                "right": 10,
+                "top": 20,
+                "bottom": 20,
+                "containLabel": True,
+            },
             "xAxis": {"type": "time"},
             "yAxis": {"type": "value"},
             "series": [
@@ -874,10 +944,10 @@ async def training_plans_page():
         global current_plan
         workout = parse_workout_str(workout_str.value).flatten()
         with open(f"./training_plans/{current_plan}.stages", "w") as f:
-            f.write(f"stage:0,0,0,0,0,5,0\n")
+            f.write(f"stage=0,0,0,0,0,5,0\n")
             for duration, power_start, power_end, type_id in workout:
-                f.write(f"stage:1,{duration},{power_start},{power_end},{type_id},5,0\n")
-            f.write(f"stage:3,0,0,0,0,5,0\n")
+                f.write(f"stage=1,{duration},{power_start},{power_end},{type_id},5,0\n")
+            f.write(f"stage=3,0,0,0,0,5,0\n")
         ui.notify(f"Training plan written to ./training_plans/{current_plan}.stages")
 
     with ui.card().classes("w-full h-100 flex-1"):
@@ -891,6 +961,7 @@ async def training_plans_page():
                 .classes("w-120")
                 .on("keydown.enter", lambda e: update_chart())
             )
+            ui.space()
             ui.button("Save", on_click=save_training_plan)
         chart = ui.echart(build_chart_options(Interval(0, 0, 0))).classes("w-full h-80")
 
@@ -928,6 +999,7 @@ async def training_plans_page():
             "name": "edit",
             "label": "",
             "type": "action",
+            "align": "right",
             "handler": lambda e: load_training_plan(e.args),
         },
     ]
@@ -1041,6 +1113,17 @@ async def training_sessions_page():
         data_power = list(zip(data["time"], data["power"]))
         data_inclination = list(zip(data["time"], data["inclination"]))
         return {
+            "legend": {
+                "bottom": -10,
+                "left": 'center'
+            },
+            "grid": {
+                "left": 10,
+                "right": 10,
+                "top": 10,
+                "bottom": 50,
+                "containLabel": True,
+            },
             "xAxis": {"type": "time"},
             "yAxis": {"type": "value"},
             "legend": {
@@ -1188,6 +1271,7 @@ async def training_sessions_page():
             "name": "view",
             "label": "",
             "type": "action",
+            "align": "right",
             "handler": lambda e: view_session(e.args),
         },
     ]
