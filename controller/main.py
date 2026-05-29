@@ -21,6 +21,20 @@ class ErgometerDevice:
         self._response_event = asyncio.Event()
         self.telemetry_enabled = False
         self._telemetry_task = None
+        self._last_telemetry_line = None
+
+    @staticmethod
+    def _is_telemetry_line(line):
+        return line.startswith("data:")
+
+    async def _publish_telemetry_if_new(self, line):
+        if line == self._last_telemetry_line:
+            #print(f"[{self.label}] telemetry duplicate skipped: {line!r}")
+            return False
+
+        self._last_telemetry_line = line
+        await self.redis.publish(f"ergo/telemetry/{self.label}", line)
+        return True
 
     @staticmethod
     async def _read_device_line(reader):
@@ -39,22 +53,23 @@ class ErgometerDevice:
 
     async def _send_line_locked(self, line, timeout_s=3.0):
         if not self.writer:
-            print(f"[{self.label}] _send_line_locked: not connected, line={line!r}")
+            #print(f"[{self.label}] _send_line_locked: not connected, line={line!r}")
             return {"error": "Not connected"}
 
-        print(f"[{self.label}] _send_line_locked: writer={self.writer!r} sending line={line!r} timeout_s={timeout_s}")
+        #print(f"[{self.label}] _send_line_locked: writer={self.writer!r} sending line={line!r} timeout_s={timeout_s}")
         self._pending_response = None
         self._response_event.clear()
         try:
             self.writer.write(f"{line}\r\n".encode('utf-8'))
             await self.writer.drain()
 
-            print(f"[{self.label}] _send_line_locked: waiting for ack/response")
+            #print(f"[{self.label}] _send_line_locked: waiting for ack/response")
             await asyncio.wait_for(self._response_event.wait(), timeout=timeout_s)
 
             response = (self._pending_response or "").strip()
+            self._pending_response = None
             rl = response.lower()
-            print(f"[{self.label}] _send_line_locked: got response={response!r}")
+            #print(f"[{self.label}] _send_line_locked: got response={response!r}")
             # Accept 'ok' even if prefixed by prompt text like 'cli> ok'
             if re.search(r"\bok\b", rl):
                 return {"response": "ok"}
@@ -83,25 +98,20 @@ class ErgometerDevice:
                         break
                     if not decoded:
                         continue
-                    print(f"[{self.label}] RX: {decoded!r} lock={self.lock.locked()} pending={self._pending_response is not None}")
-                    
-                    # If the lock is LOCKED, a command is currently waiting for this exact line of data!
-                    # If it's UNLOCKED, it's just normal passive telemetry.
-                    if self.lock.locked():
-                        if self._pending_response is None:
-                            self._pending_response = decoded
-                            print(f"[{self.label}] RX stored as pending response: {decoded!r}")
-                            self._response_event.set()
-                            print(f"[{self.label}] response event set")
-                        else:
-                            # Additional lines can arrive immediately after an ack, for example
-                            # when telemetry starts after a control command such as data=7.
-                            await self.redis.publish(f"ergo/telemetry/{self.label}", decoded)
+                    #print(f"[{self.label}] RX: {decoded!r} lock={self.lock.locked()} pending={self._pending_response is not None}")
+
+                    if self._is_telemetry_line(decoded):
+                        await self._publish_telemetry_if_new(decoded)
+                        continue
+
+                    # Non-telemetry lines are treated as command responses while a command is active.
+                    if self.lock.locked() and self._pending_response is None:
+                        self._pending_response = decoded
+                        #print(f"[{self.label}] RX stored as pending response: {decoded!r}")
+                        self._response_event.set()
+                        print(f"[{self.label}] response event set")
                     else:
-                        # Publish passive telemetry to Redis for the UI to consume
-                        # Note: publish telemetry as json or parse in UI as needed. For now, just raw string.
-                        await self.redis.publish(f"ergo/telemetry/{self.label}", decoded)
-                        # print(f"[{self.label}] Telemetry: {decoded}")
+                        print(f"[{self.label}] RX ignored (non-telemetry, idle or already handled): {decoded!r}")
 
             except Exception as e:
                 print(f"[{self.label}] Error: {e}")
@@ -193,6 +203,7 @@ class ErgometerDevice:
             print(f"[{self.label}] _send_and_receive: waiting for first response")
             await asyncio.wait_for(self._response_event.wait(), timeout=timeout_s)
             response = (self._pending_response or "").strip()
+            self._pending_response = None
             print(f"[{self.label}] _send_and_receive: got response={response!r}")
             return {"response": response}
         except asyncio.TimeoutError:
@@ -257,6 +268,7 @@ async def listen_for_commands(redis_client):
             # Publish the result back to Redis specifically for FastAPI to catch
             reply = {"req_id": req_id, **result}
             await redis_client.publish(f"ergo/responses/{label}", json.dumps(reply))
+
 
 async def listen_for_load_plans(redis_client):
     """Listens to Redis for training plan load requests coming from FastAPI."""

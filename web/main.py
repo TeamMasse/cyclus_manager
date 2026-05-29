@@ -601,6 +601,12 @@ async def page():
                 with ui.row().classes("w-full items-center"):
                     ui.label(f"{key}").style("font-size: 24px;")
 
+                    async def set_slave(k=key):
+                        result = await sent_command(
+                            f"http://api:8000/api/ergometers/{k}/command", command="slave=3"
+                        )
+                        ui.notify(str(result))
+
                     async def set_time(k=key):
                         result = await sent_command(
                             f"http://api:8000/api/ergometers/{k}/time"
@@ -608,7 +614,8 @@ async def page():
                         ui.notify(str(result))
 
                     ui.space()
-                    ui.button("Set time", on_click=set_time)
+                    ui.button("Set slave", on_click=set_slave)
+                    ui.button("Set time", on_click=set_time)                   
 
                 with ui.row().classes("w-full items-center"):
                     athlete_select = ui.select(athlete_options, label="Athlete", value=1).classes("w-50")
@@ -947,7 +954,7 @@ async def training_plans_page():
             f.write(f"stage=0,0,0,0,0,5,0\n")
             for duration, power_start, power_end, type_id in workout:
                 f.write(f"stage=1,{duration},{power_start},{power_end},{type_id},5,0\n")
-            f.write(f"stage=3,0,0,0,0,5,0\n")
+            f.write(f"stage=3\n")
         ui.notify(f"Training plan written to ./training_plans/{current_plan}.stages")
 
     with ui.card().classes("w-full h-100 flex-1"):
