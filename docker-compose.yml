@@ -98,3 +98,15 @@ services:
       - redis
     volumes:
       - ./training_plans:/training_plans:r
+
+  sync:
+    build: ./sync
+    container_name: ergo_sync
+    deploy:
+       restart_policy:
+         condition: all
+         delay: 30s
+    environment:
+      - ERGOMETERS_CONFIG=${ERGOMETERS_CONFIG}
+      - USER=${USER}
+      - PASSWORD=${PASSWORD}
