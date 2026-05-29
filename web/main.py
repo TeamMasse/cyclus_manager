@@ -607,6 +607,12 @@ async def page():
                             f"http://api:8000/api/ergometers/{k}/command", command="slave=3"
                         )
                         ui.notify(str(result))
+                        
+                    async def set_free(k=key):
+                        result = await sent_command(
+                            f"http://api:8000/api/ergometers/{k}/command", command="slave=0"
+                        )
+                        ui.notify(str(result))
 
                     async def set_time(k=key):
                         result = await sent_command(
@@ -616,6 +622,7 @@ async def page():
 
                     ui.space()
                     ui.button("Set slave", on_click=set_slave)
+                    ui.button("Set free", on_click=set_free)
                     ui.button("Set time", on_click=set_time)                   
 
                 with ui.row().classes("w-full items-center"):
