@@ -54,7 +54,7 @@ async def redis_listener():
 
                 # Assume your Controller publishes JSON like: {"watts": 250, "rpm": 90}
                 raw_data = message["data"].decode("utf-8")
-                print(f"Received telemetry for {label}: {raw_data}")
+                #print(f"Received telemetry for {label}: {raw_data}")
                 telemetry = raw_data[7:].split(
                     ","
                 )  # Adjust parsing based on your actual data format
@@ -718,9 +718,7 @@ async def page():
             if state["rendered_version"] == data_version[ergo_key]:
                 continue
 
-            print(
-                f"[refresh] {ergo_key} data_version={data_version[ergo_key]} legend={json.dumps(ensure_legend_state(ergo_key), sort_keys=True)}"
-            )
+            #print(f"[refresh] {ergo_key} data_version={data_version[ergo_key]} legend={json.dumps(ensure_legend_state(ergo_key), sort_keys=True)}")
             chart = state["chart"]
             new_options = build_chart_options(ergo_key)
             chart.options.update(new_options)
