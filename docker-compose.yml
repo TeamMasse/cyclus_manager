@@ -104,9 +104,11 @@ services:
     container_name: ergo_sync
     deploy:
        restart_policy:
-         condition: all
+         condition: always
          delay: 30s
     environment:
       - ERGOMETERS_CONFIG=${ERGOMETERS_CONFIG}
       - USER=${USER}
       - PASSWORD=${PASSWORD}
+    volumes:
+      - ./data:/data
