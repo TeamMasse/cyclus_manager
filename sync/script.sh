@@ -27,6 +27,6 @@ for ergometer_entry in "${ergometer_entries[@]}"; do
 			*) remote_folder="${DESTINATION%/}/${folder}" ;;
 		esac
 
-		lftp -u "${USER},${PASSWORD}" "ftp://${ergometer_host}:21" -e "mirror -R --no-delete --only-newer /mnt/${folder} ${remote_folder}; bye"
+		lftp -u "${USER},${PASSWORD}" "ftp://${ergometer_host}:21" -e "mirror -R --only-newer /data/${folder} ${remote_folder}; bye"
 	done
 done
