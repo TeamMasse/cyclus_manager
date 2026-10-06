@@ -1,19 +1,19 @@
 #!/bin/bash
-set -euo pipefail
+set -euo pipefail #make the program exit when failure
 
 echo "[$(date)] The backup starts"
-pkill -x lftp || true
+pkill -x lftp || true #kill stale lftp
 
-ergometers_config="${ERGOMETERS_CONFIG:-${ergometers_config:-}}"
-ergometers_config="${ergometers_config#\{}"
-ergometers_config="${ergometers_config%\}}"
+ergometers_config="${ERGOMETERS_CONFIG}"
+ergometers_config="${ergometers_config#\{}" #delete leading {
+ergometers_config="${ergometers_config%\}}" #delete trailing }
 
 IFS=',' read -r -a ergometer_entries <<< "${ergometers_config:-}"
 
 for ergometer_entry in "${ergometer_entries[@]}"; do
-	ergometer_entry="${ergometer_entry//\"/}"
-	ergometer_entry="${ergometer_entry//[[:space:]]/}"
-	[[ -z "${ergometer_entry}" ]] && continue
+	ergometer_entry="${ergometer_entry//\"/}" #delete any "
+	ergometer_entry="${ergometer_entry//[[:space:]]/}" #delete any spaces
+	[[ -z "${ergometer_entry}" ]] && continue #if empty string continue
 
 	ergometer_name="${ergometer_entry%%:*}"
 	ergometer_host_with_port="${ergometer_entry#*:}"
@@ -27,6 +27,7 @@ for ergometer_entry in "${ergometer_entries[@]}"; do
 			*) remote_folder="${DESTINATION%/}/${folder}" ;;
 		esac
 
-		lftp -u "${USER},${PASSWORD}" "ftp://${ergometer_host}:21" -e "mirror -R --only-newer /data/${folder} ${remote_folder}; bye"
+		lftp -u "${USER},${PASSWORD}" "ftp://${ergometer_host}:21" -e "mirror --only-newer ${remote_folder} /data/${folder}; bye"
+		# lftp -u "${USER},${PASSWORD}" "ftp://${ergometer_host}:21" -e "mirror -R --only-newer /data/${folder} ${remote_folder}; bye" #possible --delete flag after first sync
 	done
 done
