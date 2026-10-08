@@ -19,15 +19,21 @@ for ergometer_entry in "${ergometer_entries[@]}"; do
 	ergometer_host_with_port="${ergometer_entry#*:}"
 	ergometer_host="${ergometer_host_with_port%%:*}"
 
-	echo "[$(date)] Syncing c2d and sys to ${ergometer_name} (${ergometer_host})"
-
 	for folder in c2d sys prg export; do
-		case "${DESTINATION:-/}" in
-			/) remote_folder="/${folder}" ;;
-			*) remote_folder="${DESTINATION%/}/${folder}" ;;
-		esac
+                case "${DESTINATION:-/}" in
+                        /) remote_folder="/${folder}" ;;
+                        *) remote_folder="${DESTINATION%/}/${folder}" ;;
+                esac
 
-		lftp -u "${USER},${PASSWORD}" "ftp://${ergometer_host}:21" -e "mirror --only-newer ${remote_folder} /data/${folder}; bye"
-		# lftp -u "${USER},${PASSWORD}" "ftp://${ergometer_host}:21" -e "mirror -R --only-newer /data/${folder} ${remote_folder}; bye" #possible --delete flag after first sync
-	done
+                echo "[$(date)] Syncing ${folder} with ${ergometer_name}..."
+
+                lftp -e "
+                    set net:timeout 10;
+                    set net:max-retries 2;
+                    open -u \"${USER},${PASSWORD}\" \"ftp://${ergometer_host}:21\";
+                    mirror --only-newer \"${remote_folder}\" \"/data/${folder}\";
+                    #mirror -R --only-newer \"/data/${folder}\" \"${remote_folder}\"; #later add --delete
+                    bye;
+                " || echo "[$(date)] Warning: Failed to sync ${folder} on ${ergometer_name}"
+        done
 done
