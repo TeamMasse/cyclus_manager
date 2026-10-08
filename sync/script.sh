@@ -21,7 +21,7 @@ for ergometer_entry in "${ergometer_entries[@]}"; do
 
 	for folder in c2d sys prg export; do
                 case "${DESTINATION:-/}" in
-                        /) remote_folder="/${folder}" ;;
+                        /) remote_folder="${folder}" ;;
                         *) remote_folder="${DESTINATION%/}/${folder}" ;;
                 esac
 
@@ -31,9 +31,9 @@ for ergometer_entry in "${ergometer_entries[@]}"; do
                 lftp -e "
                     set net:timeout 10;
                     set net:max-retries 2;
-                    open \"${CYCLUS_USER}:${PASSWORD}@${ergometer_host}:21\";
-                    mirror --only-newer \"${remote_folder}\" \"/data/${folder}\";
-                    #mirror -R --only-newer \"/data/${folder}\" \"${remote_folder}\"; #later add --delete
+                    open ${CYCLUS_USER}:${PASSWORD}@${ergometer_host};
+                    mirror --only-newer ${remote_folder} /data/${folder};
+                    mirror -R --only-newer /data/${folder} ${remote_folder}; #later add --delete
                     bye;
                 " || echo "[$(date)] Warning: Failed to sync ${folder} on ${ergometer_name}"
         done
