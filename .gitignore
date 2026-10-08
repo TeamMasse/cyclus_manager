@@ -8,3 +8,15 @@ __pycache__/
 
 cyclus1.py
 cyclus2.py
+
+data/sys/*
+!data/sys/
+
+data/c2d/*
+!data/c2d/
+
+data/prg/*
+!data/prg/
+
+data/export/*
+!data/export/
