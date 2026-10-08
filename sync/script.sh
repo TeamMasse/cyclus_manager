@@ -26,6 +26,7 @@ for ergometer_entry in "${ergometer_entries[@]}"; do
                 esac
 
                 echo "[$(date)] Syncing ${folder} with ${ergometer_name}...${ergometer_host}"
+				echo "with ${USER} and ${PASSWORD}"
 
                 lftp -e "
                     set net:timeout 10;
