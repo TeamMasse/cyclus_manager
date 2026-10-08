@@ -108,7 +108,7 @@ services:
          delay: 30s
     environment:
       - ERGOMETERS_CONFIG=${ERGOMETERS_CONFIG}
-      - USER=${USER}
+      - CYCLUS_USER=${CYCLUS_USER}
       - PASSWORD=${PASSWORD}
     volumes:
       - ./data:/data
